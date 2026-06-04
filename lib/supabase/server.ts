@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -12,15 +13,10 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll()
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setAll(cookiesToSet: any[]) {
+        setAll(cookiesToSet: any) {
           try {
-            cookiesToSet.forEach(({ name, value, options }: { name: string; value: string; options?: object }) => {
-              cookieStore.set(name, value, options as Parameters<typeof cookieStore.set>[2])
-            })
-          } catch {
-            // Ignored in Server Components — middleware handles refresh
-          }
+            cookiesToSet.forEach((c: any) => cookieStore.set(c.name, c.value, c.options))
+          } catch { /* ignored in Server Components */ }
         },
       },
     }
