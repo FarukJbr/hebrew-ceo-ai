@@ -1,15 +1,16 @@
-import { createClient } from '@/lib/supabase/server'
 import { Header } from '@/components/Header'
 import { StatCard } from '@/components/StatCard'
 import { DashboardCharts } from '@/components/DashboardCharts'
 import { Wallet, Users, ListChecks, Bot, Activity, ArrowLeft } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 const recentActivity = [
-  { time: '09:12', agent: 'אריאל — מנכ״ל AI', action: 'סיים ניתוח דוח רבעוני Q2', type: 'ai' },
-  { time: '09:15', agent: 'נועה — CFO AI', action: 'עדכן תחזית תזרים יוני', type: 'finance' },
-  { time: '09:31', agent: 'יובל — שיווק AI', action: 'הציע קמפיין לשוק האירופי', type: 'marketing' },
-  { time: '10:00', agent: 'מיכל — משפטי AI', action: 'סקר הסכם ספק חדש', type: 'legal' },
-  { time: '10:22', agent: 'דניאל — HR AI', action: 'פרסם 3 משרות גיוס חדשות', type: 'hr' },
+  { time: '09:12', agent: 'אריאל — מנכ״ל AI', action: 'סיים ניתוח דוח רבעוני Q2' },
+  { time: '09:15', agent: 'נועה — CFO AI', action: 'עדכן תחזית תזרים יוני' },
+  { time: '09:31', agent: 'יובל — שיווק AI', action: 'הציע קמפיין לשוק האירופי' },
+  { time: '10:00', agent: 'מיכל — משפטי AI', action: 'סקר הסכם ספק חדש' },
+  { time: '10:22', agent: 'דניאל — HR AI', action: 'פרסם 3 משרות גיוס חדשות' },
 ]
 
 const agentStatus = [
@@ -19,16 +20,10 @@ const agentStatus = [
   { name: 'תמר', role: 'מכירות AI', status: 'בסטנדבי', tasks: 0 },
 ]
 
-export default async function DashboardPage() {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
+export default function DashboardPage() {
   return (
     <div className="min-h-screen">
-      <Header
-        title="לוח בקרה"
-        subtitle={`שלום, יו״ר הדירקטוריון`}
-      />
+      <Header title="לוח בקרה" subtitle="שלום, יו״ר הדירקטוריון" />
 
       <div className="p-6 space-y-6 animate-fade-in">
         {/* Welcome banner */}
@@ -45,43 +40,16 @@ export default async function DashboardPage() {
             <h2 className="text-xl font-bold text-text-primary">
               AI Company OS — {new Date().toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' })}
             </h2>
-            <p className="text-text-secondary text-sm mt-1">כל סוכני ה-AI פעילים ועובדים. 8 סוכנים, 12 משימות פתוחות.</p>
+            <p className="text-text-secondary text-sm mt-1">כל סוכני ה-AI פעילים. 8 סוכנים, 12 משימות פתוחות.</p>
           </div>
         </div>
 
         {/* KPI Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            title="הכנסות החודש"
-            value="₪842K"
-            change={+8.4}
-            changeLabel="מהחודש שעבר"
-            icon={Wallet}
-            color="cyan"
-          />
-          <StatCard
-            title="עובדים פעילים"
-            value="128"
-            change={+3}
-            changeLabel="מהחודש שעבר"
-            icon={Users}
-            color="purple"
-          />
-          <StatCard
-            title="משימות פתוחות"
-            value="47"
-            change={-12}
-            changeLabel="מהשבוע שעבר"
-            icon={ListChecks}
-            color="amber"
-          />
-          <StatCard
-            title="סוכני AI פעילים"
-            value="8"
-            icon={Bot}
-            color="green"
-            suffix="/ 8"
-          />
+          <StatCard title="הכנסות החודש" value="₪842K" change={8.4} changeLabel="מהחודש שעבר" icon={Wallet} color="cyan" />
+          <StatCard title="עובדים פעילים" value="128" change={3} changeLabel="מהחודש שעבר" icon={Users} color="purple" />
+          <StatCard title="משימות פתוחות" value="47" change={-12} changeLabel="מהשבוע שעבר" icon={ListChecks} color="amber" />
+          <StatCard title="סוכני AI פעילים" value="8" icon={Bot} color="green" suffix="/ 8" />
         </div>
 
         {/* Charts */}
@@ -130,16 +98,10 @@ export default async function DashboardPage() {
                     <p className="text-xs text-text-muted">{agent.role}</p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      agent.status === 'פעיל'
-                        ? 'bg-accent-green/10 text-accent-green'
-                        : 'bg-white/5 text-text-muted'
-                    }`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${agent.status === 'פעיל' ? 'bg-accent-green/10 text-accent-green' : 'bg-white/5 text-text-muted'}`}>
                       {agent.status}
                     </span>
-                    {agent.tasks > 0 && (
-                      <span className="text-xs text-text-muted">{agent.tasks} משימות</span>
-                    )}
+                    {agent.tasks > 0 && <span className="text-xs text-text-muted">{agent.tasks} משימות</span>}
                   </div>
                 </div>
               ))}
