@@ -43,8 +43,8 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent-cyan/10 border border-accent-cyan/20 mb-4 glow-cyan-sm">
             <Building2 className="w-8 h-8 text-accent-cyan" />
           </div>
-          <h1 className="text-2xl font-bold text-text-primary">AI Company OS</h1>
-          <p className="text-text-secondary text-sm mt-1">אלפא טכנולוגיות</p>
+          <h1 className="text-2xl font-bold text-text-primary">Prime Ledger Solutions</h1>
+          <p className="text-text-secondary text-sm mt-1">גבר יזמות ייעוץ עסקי והשקעות</p>
         </div>
 
         {/* Login Card */}
@@ -130,7 +130,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-text-muted text-xs mt-6">
-          AI Company OS v1.0 — מוגן ומאובטח
+          Prime Ledger Solutions v1.0 — מוגן ומאובטח
         </p>
       </div>
     </div>

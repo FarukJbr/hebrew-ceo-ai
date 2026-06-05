@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'AI Company OS | אלפא טכנולוגיות',
-  description: 'מערכת ניהול חברה עם AI',
+  title: 'Prime Ledger Solutions | גבר יזמות',
+  description: 'מערכת ניהול חברה עם AI — גבר יזמות ייעוץ עסקי והשקעות',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -38,7 +38,7 @@ export default function DashboardPage() {
               <span className="text-xs text-accent-cyan font-medium uppercase tracking-wider">מערכת פעילה</span>
             </div>
             <h2 className="text-xl font-bold text-text-primary">
-              AI Company OS — {new Date().toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' })}
+              גבר יזמות — {new Date().toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' })}
             </h2>
             <p className="text-text-secondary text-sm mt-1">כל סוכני ה-AI פעילים. 8 סוכנים, 12 משימות פתוחות.</p>
           </div>

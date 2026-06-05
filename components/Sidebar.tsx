@@ -45,8 +45,8 @@ export function Sidebar() {
           <Building2 className="w-5 h-5 text-accent-cyan" />
         </div>
         <div>
-          <p className="text-sm font-bold text-text-primary">AI Company OS</p>
-          <p className="text-xs text-text-muted">אלפא טכנולוגיות</p>
+          <p className="text-sm font-bold text-text-primary">Prime Ledger</p>
+          <p className="text-xs text-text-muted">גבר יזמות</p>
         </div>
       </div>
 
