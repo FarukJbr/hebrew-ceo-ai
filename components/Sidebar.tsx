@@ -17,7 +17,7 @@ const navItems = [
   { href: '/finance',     label: 'פיננסים',      icon: Wallet },
   { href: '/tasks',       label: 'משימות',       icon: ListChecks },
   { href: '/chat',        label: 'צ׳אט AI',      icon: MessageSquare },
-  { href: '/agents',      label: 'סוכני AI',     icon: Bot },
+  { href: '/agents',      label: 'מחלקות',       icon: Bot },
   { href: '/meetings',    label: 'ישיבות',       icon: Calendar },
   { href: '/reports',     label: 'דוחות',        icon: BarChart3 },
 ]
