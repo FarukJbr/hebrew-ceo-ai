@@ -8,7 +8,7 @@ interface StatCardProps {
   change?: number
   changeLabel?: string
   icon: LucideIcon
-  color?: 'cyan' | 'purple' | 'green' | 'amber'
+  color?: 'cyan' | 'purple' | 'green' | 'amber' | 'red'
   suffix?: string
 }
 
@@ -17,6 +17,7 @@ const colorMap = {
   purple: { bg: 'bg-accent-purple/10', border: 'border-accent-purple/20', icon: 'text-accent-purple', glow: '167,139,250' },
   green:  { bg: 'bg-accent-green/10',  border: 'border-accent-green/20',  icon: 'text-accent-green',  glow: '52,211,153' },
   amber:  { bg: 'bg-accent-amber/10',  border: 'border-accent-amber/20',  icon: 'text-accent-amber',  glow: '251,191,36' },
+  red:    { bg: 'bg-accent-red/10',    border: 'border-accent-red/20',    icon: 'text-accent-red',    glow: '248,113,113' },
 }
 
 export function StatCard({ title, value, change, changeLabel, icon: Icon, color = 'cyan', suffix }: StatCardProps) {

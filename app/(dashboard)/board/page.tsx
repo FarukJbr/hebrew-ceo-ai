@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Header } from '@/components/Header'
-import { Vote, Plus, ThumbsUp, ThumbsDown, Minus, Users, Calendar, FileText, ChevronDown, ChevronUp } from 'lucide-react'
+import { Vote, Plus, ThumbsUp, ThumbsDown, Minus, Users, Calendar, FileText, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react'
 
 type VoteResult = 'approved' | 'rejected' | 'pending'
 
@@ -16,9 +16,10 @@ interface BoardDecision {
   result: VoteResult
   category: string
   notes?: string
+  myVote?: 'for' | 'against' | 'abstain' | null
 }
 
-const decisions: BoardDecision[] = [
+const initialDecisions: BoardDecision[] = [
   {
     id: 1,
     title: 'השקעה בנכס מסחרי — תל אביב',
@@ -28,6 +29,7 @@ const decisions: BoardDecision[] = [
     votes: { for: 0, against: 0, abstain: 0 },
     result: 'pending',
     category: 'השקעות נדל״ן',
+    myVote: null,
   },
   {
     id: 2,
@@ -77,11 +79,16 @@ const decisions: BoardDecision[] = [
 
 const resultConfig: Record<VoteResult, { label: string; color: string; bg: string }> = {
   approved: { label: 'אושר', color: 'text-accent-green', bg: 'bg-accent-green/10' },
-  rejected: { label: 'נדחה', color: 'text-accent-red', bg: 'bg-accent-red/10' },
-  pending:  { label: 'ממתין', color: 'text-accent-amber', bg: 'bg-accent-amber/10' },
+  rejected: { label: 'נדחה', color: 'text-accent-red',   bg: 'bg-accent-red/10' },
+  pending:  { label: 'ממתין להצבעה', color: 'text-accent-amber', bg: 'bg-accent-amber/10' },
 }
 
-function DecisionCard({ decision }: { decision: BoardDecision }) {
+interface DecisionCardProps {
+  decision: BoardDecision
+  onVote: (id: number, vote: 'for' | 'against' | 'abstain') => void
+}
+
+function DecisionCard({ decision, onVote }: DecisionCardProps) {
   const [expanded, setExpanded] = useState(decision.result === 'pending')
   const r = resultConfig[decision.result]
   const totalVotes = decision.votes.for + decision.votes.against + decision.votes.abstain
@@ -124,12 +131,12 @@ function DecisionCard({ decision }: { decision: BoardDecision }) {
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-1.5 text-xs">
                     <ThumbsUp className="w-3.5 h-3.5 text-accent-green" />
-                    <span className="text-accent-green font-semibold">{decision.votes.for}</span>
+                    <span className="text-accent-green font-bold">{decision.votes.for}</span>
                     <span className="text-text-muted">בעד</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
                     <ThumbsDown className="w-3.5 h-3.5 text-accent-red" />
-                    <span className="text-accent-red font-semibold">{decision.votes.against}</span>
+                    <span className="text-accent-red font-bold">{decision.votes.against}</span>
                     <span className="text-text-muted">נגד</span>
                   </div>
                   {decision.votes.abstain > 0 && (
@@ -142,16 +149,39 @@ function DecisionCard({ decision }: { decision: BoardDecision }) {
               )}
 
               {decision.result === 'pending' && (
-                <div className="flex gap-2 pt-1">
-                  <button className="flex items-center gap-1.5 bg-accent-green/10 hover:bg-accent-green/20 border border-accent-green/20 text-accent-green text-xs px-4 py-2 rounded-xl transition-all">
-                    <ThumbsUp className="w-3.5 h-3.5" /> אישור
-                  </button>
-                  <button className="flex items-center gap-1.5 bg-accent-red/10 hover:bg-accent-red/20 border border-accent-red/20 text-accent-red text-xs px-4 py-2 rounded-xl transition-all">
-                    <ThumbsDown className="w-3.5 h-3.5" /> דחייה
-                  </button>
-                  <button className="flex items-center gap-1.5 bg-white/5 hover:bg-white/8 border border-border-muted text-text-muted text-xs px-4 py-2 rounded-xl transition-all">
-                    <Minus className="w-3.5 h-3.5" /> נמנע
-                  </button>
+                <div className="space-y-2">
+                  {decision.myVote ? (
+                    <div className="flex items-center gap-2 bg-accent-green/5 border border-accent-green/20 rounded-xl px-4 py-3">
+                      <CheckCircle2 className="w-4 h-4 text-accent-green" />
+                      <span className="text-sm text-accent-green font-medium">
+                        הצבעת: {decision.myVote === 'for' ? 'בעד ✓' : decision.myVote === 'against' ? 'נגד ✗' : 'נמנע'}
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-xs text-text-muted mb-2">הצבע עכשיו:</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => onVote(decision.id, 'for')}
+                          className="flex items-center gap-1.5 bg-accent-green/10 hover:bg-accent-green/20 border border-accent-green/20 text-accent-green text-xs px-4 py-2 rounded-xl transition-all active:scale-95"
+                        >
+                          <ThumbsUp className="w-3.5 h-3.5" /> אישור
+                        </button>
+                        <button
+                          onClick={() => onVote(decision.id, 'against')}
+                          className="flex items-center gap-1.5 bg-accent-red/10 hover:bg-accent-red/20 border border-accent-red/20 text-accent-red text-xs px-4 py-2 rounded-xl transition-all active:scale-95"
+                        >
+                          <ThumbsDown className="w-3.5 h-3.5" /> דחייה
+                        </button>
+                        <button
+                          onClick={() => onVote(decision.id, 'abstain')}
+                          className="flex items-center gap-1.5 bg-white/5 hover:bg-white/8 border border-border-muted text-text-muted text-xs px-4 py-2 rounded-xl transition-all active:scale-95"
+                        >
+                          <Minus className="w-3.5 h-3.5" /> נמנע
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -172,16 +202,32 @@ function DecisionCard({ decision }: { decision: BoardDecision }) {
 }
 
 export default function BoardPage() {
+  const [decisions, setDecisions] = useState<BoardDecision[]>(initialDecisions)
+
+  const handleVote = (id: number, vote: 'for' | 'against' | 'abstain') => {
+    setDecisions(prev => prev.map(d => {
+      if (d.id !== id) return d
+      const newVotes = {
+        for: d.votes.for + (vote === 'for' ? 1 : 0),
+        against: d.votes.against + (vote === 'against' ? 1 : 0),
+        abstain: d.votes.abstain + (vote === 'abstain' ? 1 : 0),
+      }
+      const totalAfter = newVotes.for + newVotes.against + newVotes.abstain
+      const newResult: VoteResult = totalAfter >= 3
+        ? newVotes.for > newVotes.against ? 'approved' : 'rejected'
+        : 'pending'
+      return { ...d, votes: newVotes, result: newResult, myVote: vote }
+    }))
+  }
+
   const pending = decisions.filter(d => d.result === 'pending')
-  const approved = decisions.filter(d => d.result === 'approved')
-  const rejected = decisions.filter(d => d.result === 'rejected')
+  const history = decisions.filter(d => d.result !== 'pending')
 
   return (
     <div className="min-h-screen">
       <Header title="דירקטוריון" subtitle="החלטות, הצבעות ופרוטוקולים — גבר יזמות ייעוץ עסקי והשקעות" />
 
       <div className="p-6 space-y-6 animate-fade-in">
-        {/* Stats */}
         <div className="grid grid-cols-3 gap-4">
           <div className="glass-card rounded-2xl p-4 border border-accent-amber/20">
             <p className="text-xs text-text-muted mb-1">ממתין להצבעה</p>
@@ -189,11 +235,11 @@ export default function BoardPage() {
           </div>
           <div className="glass-card rounded-2xl p-4">
             <p className="text-xs text-text-muted mb-1">אושרו</p>
-            <p className="text-2xl font-bold text-accent-green">{approved.length}</p>
+            <p className="text-2xl font-bold text-accent-green">{history.filter(d=>d.result==='approved').length}</p>
           </div>
           <div className="glass-card rounded-2xl p-4">
             <p className="text-xs text-text-muted mb-1">נדחו</p>
-            <p className="text-2xl font-bold text-accent-red">{rejected.length}</p>
+            <p className="text-2xl font-bold text-accent-red">{history.filter(d=>d.result==='rejected').length}</p>
           </div>
         </div>
 
@@ -206,13 +252,13 @@ export default function BoardPage() {
         {pending.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-accent-amber uppercase tracking-wider">ממתין להצבעה</h3>
-            {pending.map(d => <DecisionCard key={d.id} decision={d} />)}
+            {pending.map(d => <DecisionCard key={d.id} decision={d} onVote={handleVote} />)}
           </div>
         )}
 
         <div className="space-y-3">
           <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">היסטוריית החלטות</h3>
-          {[...approved, ...rejected].sort((a,b) => b.id - a.id).map(d => <DecisionCard key={d.id} decision={d} />)}
+          {history.sort((a,b)=>b.id-a.id).map(d => <DecisionCard key={d.id} decision={d} onVote={handleVote} />)}
         </div>
       </div>
     </div>
