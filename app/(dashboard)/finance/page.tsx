@@ -35,7 +35,8 @@ function getPL(k: string, p: string) {
 type Tab = 'dashboard'|'accounts'|'records'|'cashflow'|'import'
 
 export default function FinancePage() {
-  const [userEmail, setUserEmail] = useState('')
+  const [userId, setUserId] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   const [accounts, setAccounts] = useState<Account[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -74,26 +75,35 @@ export default function FinancePage() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => {
-      const email = data.user?.email || 'guest'
-      setUserEmail(email)
-      try {
-        const raw = localStorage.getItem(`fin_${email}`)
-        if (raw) {
-          const d = JSON.parse(raw)
-          setAccounts(d.accounts||[])
-          setTransactions(d.records||[])
-          setBankRows(d.bankRows||[])
-        }
-      } catch {}
+    supabase.auth.getUser().then(async ({ data }) => {
+      const uid = data.user?.id
+      if (!uid) { setIsLoading(false); return }
+      setUserId(uid)
+      const { data: row } = await supabase
+        .from('cf_data')
+        .select('accounts, records, bank_rows')
+        .eq('user_id', uid)
+        .single()
+      if (row) {
+        setAccounts(row.accounts || [])
+        setTransactions(row.records || [])
+        setBankRows(row.bank_rows || [])
+      }
+      setIsLoading(false)
     })
   }, [])
 
-  const saveData = useCallback((accts: Account[], txs: Transaction[], brs: BankRow[], email?: string) => {
-    const key = email || userEmail
-    if (!key) return
-    try { localStorage.setItem(`fin_${key}`, JSON.stringify({accounts:accts, records:txs, bankRows:brs})) } catch {}
-  }, [userEmail])
+  const saveData = useCallback(async (accts: Account[], txs: Transaction[], brs: BankRow[]) => {
+    if (!userId) return
+    const supabase = createClient()
+    await supabase.from('cf_data').upsert({
+      user_id: userId,
+      accounts: accts,
+      records: txs,
+      bank_rows: brs,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' })
+  }, [userId])
 
   const getCats = (type: 'הכנסה'|'הוצאה', bp: 'biz'|'priv') => {
     if (type==='הוצאה') return bp==='biz' ? COUT_BIZ : COUT_PRI
@@ -127,13 +137,13 @@ export default function FinancePage() {
     if (!acctName.trim()) return
     const newAcct: Account = {id:'acct-'+Date.now(),name:acctName,type:acctType,opening:parseFloat(acctOpening)||0,limit:parseFloat(acctLimit)||0,color:COLORS[accounts.length%COLORS.length]}
     const newAccts = [...accounts,newAcct]
-    setAccounts(newAccts); saveData(newAccts,transactions,bankRows)
+    setAccounts(newAccts); void saveData(newAccts,transactions,bankRows)
     setAcctName(''); setAcctOpening(''); setAcctLimit('')
   }
 
   const deleteAccount = (id: string) => {
     const newAccts=accounts.filter(a=>a.id!==id), newBRs=bankRows.filter(r=>r.acctId!==id)
-    setAccounts(newAccts); setBankRows(newBRs); saveData(newAccts,transactions,newBRs)
+    setAccounts(newAccts); setBankRows(newBRs); void saveData(newAccts,transactions,newBRs)
   }
 
   const addTransaction = () => {
@@ -141,7 +151,7 @@ export default function FinancePage() {
     const cats=getCats(txType,txBP)
     const newTx: Transaction = {id:'r-'+Date.now(),date:txDate,description:txDesc,amount:parseFloat(txAmount),type:txType,category:txCat||cats[0],bp:txBP,acctId:txAcct==='none'?null:txAcct,matched:false,bankRowId:null}
     const newTxs=[newTx,...transactions]
-    setTransactions(newTxs); saveData(accounts,newTxs,bankRows)
+    setTransactions(newTxs); void saveData(accounts,newTxs,bankRows)
     setTxDesc(''); setTxAmount('')
   }
 
@@ -153,7 +163,7 @@ export default function FinancePage() {
       setBankRows(newBRs)
     }
     const newTxs=transactions.filter(t=>t.id!==id)
-    setTransactions(newTxs); saveData(accounts,newTxs,newBRs)
+    setTransactions(newTxs); void saveData(accounts,newTxs,newBRs)
   }
 
   const handleBankImport = async (file: File) => {
@@ -179,7 +189,7 @@ export default function FinancePage() {
           newBRs.push({id:'bank-'+Date.now()+'-'+i,acctId:importAcct==='none'?null:importAcct,date,description:desc,debit,credit,matched:false,manualEntryId:null,bp:importBP})
           added++
         }
-        setBankRows(newBRs); saveData(accounts,transactions,newBRs)
+        setBankRows(newBRs); void saveData(accounts,transactions,newBRs)
         setImportResult(`יובאו ${added} תנועות${dupes?` · ${dupes} כפולות דולגו`:''}`)
       }
       reader.readAsBinaryString(file)
@@ -263,6 +273,15 @@ export default function FinancePage() {
       </div>
     )
   }
+
+  if (isLoading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
+        <p className="text-sm text-text-muted">טוען נתונים פיננסיים...</p>
+      </div>
+    </div>
+  )
 
   return (
     <div className="min-h-screen">
