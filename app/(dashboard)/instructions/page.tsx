@@ -91,12 +91,13 @@ export default function InstructionsPage() {
 
   const addInstruction = async () => {
     if (!text.trim()) return
+    const now = new Date().toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
     const newInstruction: Instruction = {
-      id: 'instruction-' + Date.now(),
+      id: crypto.randomUUID(),
       text: text.trim(),
       agent,
       priority,
-      createdAt: 'עכשיו',
+      createdAt: now,
       status: 'active',
     }
     setInstructions(prev => [newInstruction, ...prev])

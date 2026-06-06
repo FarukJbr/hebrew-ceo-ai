@@ -1,20 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
-import { Bot, CheckCircle2, Clock, Activity, MessageSquare, X, Send, Filter, Sparkles } from 'lucide-react'
+import { Bot, CheckCircle2, Clock, Activity, MessageSquare, X, Send, Filter, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 const departments = [
-  { id: 1, name: 'הנהלה',        agent: 'אריאל', role: 'מנכ״ל AI',     description: 'מנהל אסטרטגיה, מקבל החלטות ניהוליות ומפקח על שאר המחלקות', status: 'active', tasksCompleted: 142, tasksOpen: 3, lastAction: 'ניתוח דוח רבעוני Q2 — לפני 12 דקות', specialty: ['אסטרטגיה','ניהול','דיווח'],        color: 'cyan' },
-  { id: 2, name: 'כספים',        agent: 'נועה',  role: 'CFO AI',        description: 'מנהלת כספים, תזרים מזומנים, דוחות פיננסיים ותחזיות',       status: 'active', tasksCompleted: 98,  tasksOpen: 2, lastAction: 'עדכון תחזית תזרים יוני — לפני 28 דקות',  specialty: ['פיננסים','תקציב','השקעות'],      color: 'green' },
-  { id: 3, name: 'שיווק',        agent: 'יובל',  role: 'שיווק AI',      description: 'מנהל שיווק, קמפיינים, אסטרטגיית מותג ומחקר שוק',          status: 'active', tasksCompleted: 67,  tasksOpen: 5, lastAction: 'הציע קמפיין לשוק האירופי — לפני 45 דקות', specialty: ['שיווק','מותג','מחקר שוק'],       color: 'purple' },
-  { id: 4, name: 'משפטי',        agent: 'מיכל',  role: 'משפטי AI',      description: 'מייעצת משפטית, סוקרת חוזים, מנהלת ציות ורגולציה',         status: 'active', tasksCompleted: 54,  tasksOpen: 1, lastAction: 'סקר הסכם ספק חדש — לפני שעה',           specialty: ['חוזים','ציות','רגולציה'],        color: 'amber' },
-  { id: 5, name: 'משאבי אנוש',   agent: 'דניאל', role: 'HR AI',         description: 'מנהל גיוס, הדרכה, ביצועי עובדים ותרבות ארגונית',          status: 'active', tasksCompleted: 78,  tasksOpen: 3, lastAction: 'פרסם 3 משרות חדשות — לפני 2 שעות',       specialty: ['גיוס','הדרכה','ביצועים'],        color: 'cyan' },
-  { id: 7, name: 'טכנולוגיה',    agent: 'רון',   role: 'IT AI',         description: 'מנהל תשתיות, אוטומציה, אבטחת מידע ומערכות טכנולוגיות',  status: 'active',  tasksCompleted: 45, tasksOpen: 2, lastAction: 'בדיקת אבטחה חודשית — לפני 3 ימים',        specialty: ['תשתיות','אוטומציה','אבטחה'],    color: 'purple' },
-  { id: 8, name: 'מכירות',       agent: 'תמר',   role: 'מכירות AI',     description: 'מנהלת מכירות, לידים, CRM וחיזוי הכנסות',                 status: 'standby', tasksCompleted: 31, tasksOpen: 0, lastAction: 'עדכון pipeline מכירות — לפני יום',         specialty: ['מכירות','CRM','לידים'],          color: 'red' },
-  { id: 9,  name: 'תפעול',       agent: 'עמית',  role: 'COO AI',        description: 'מנהל ביצוע תפעולי, ייעול תהליכים ופיקוח על יעדי חברה',   status: 'active',  tasksCompleted: 38, tasksOpen: 4, lastAction: 'ייעול תהליך אישורי תשלום — לפני שעה',      specialty: ['תפעול','ביצוע','אופטימיזציה'],  color: 'amber' },
-  { id: 10, name: 'אסטרטגיה',    agent: 'דן',    role: 'Strategy AI',   description: 'חשיבה אסטרטגית לטווח ארוך, ניתוח מתחרים ופיתוח עסקי',   status: 'active',  tasksCompleted: 29, tasksOpen: 2, lastAction: 'ניתוח מגמות שוק Q3 — לפני 4 שעות',          specialty: ['אסטרטגיה','פיתוח עסקי','מחקר'], color: 'cyan' },
-  { id: 11, name: 'קריאייטיב',   agent: 'אלה',   role: 'Creative AI',   description: 'עיצוב, תוכן שיווקי, מיתוג ופתרונות יצירתיים',           status: 'active',  tasksCompleted: 17, tasksOpen: 3, lastAction: 'עיצוב חומרי מיתוג Q3 — לפני 2 שעות',       specialty: ['עיצוב','תוכן','מיתוג'],         color: 'purple' },
+  { id: 'הנהלה',      agent: 'אריאל', role: 'מנכ״ל AI',     description: 'מנהל אסטרטגיה, מקבל החלטות ניהוליות ומפקח על שאר המחלקות', status: 'active',  specialty: ['אסטרטגיה','ניהול','דיווח'],        color: 'cyan' },
+  { id: 'כספים',      agent: 'נועה',  role: 'CFO AI',        description: 'מנהלת כספים, תזרים מזומנים, דוחות פיננסיים ותחזיות',       status: 'active',  specialty: ['פיננסים','תקציב','השקעות'],      color: 'green' },
+  { id: 'שיווק',      agent: 'יובל',  role: 'CMO AI',        description: 'מנהל שיווק, קמפיינים, אסטרטגיית מותג ומחקר שוק',          status: 'active',  specialty: ['שיווק','מותג','מחקר שוק'],       color: 'purple' },
+  { id: 'משפטי',      agent: 'מיכל',  role: 'Legal AI',      description: 'מייעצת משפטית, סוקרת חוזים, מנהלת ציות ורגולציה',         status: 'active',  specialty: ['חוזים','ציות','רגולציה'],        color: 'amber' },
+  { id: 'משאבי אנוש', agent: 'דניאל', role: 'HR AI',         description: 'מנהל גיוס, הדרכה, ביצועי עובדים ותרבות ארגונית',          status: 'active',  specialty: ['גיוס','הדרכה','ביצועים'],        color: 'cyan' },
+  { id: 'טכנולוגיה',  agent: 'רון',   role: 'IT AI',         description: 'מנהל תשתיות, אוטומציה, אבטחת מידע ומערכות טכנולוגיות',   status: 'active',  specialty: ['תשתיות','אוטומציה','אבטחה'],    color: 'purple' },
+  { id: 'מכירות',     agent: 'תמר',   role: 'Sales AI',      description: 'מנהלת מכירות, לידים, CRM וחיזוי הכנסות',                 status: 'standby', specialty: ['מכירות','CRM','לידים'],          color: 'red' },
+  { id: 'תפעול',      agent: 'עמית',  role: 'COO AI',        description: 'מנהל ביצוע תפעולי, ייעול תהליכים ופיקוח על יעדי חברה',   status: 'active',  specialty: ['תפעול','ביצוע','אופטימיזציה'],  color: 'amber' },
+  { id: 'אסטרטגיה',  agent: 'דן',    role: 'Strategy AI',   description: 'חשיבה אסטרטגית לטווח ארוך, ניתוח מתחרים ופיתוח עסקי',   status: 'active',  specialty: ['אסטרטגיה','פיתוח עסקי','מחקר'], color: 'cyan' },
+  { id: 'קריאייטיב',  agent: 'אלה',   role: 'Creative AI',   description: 'עיצוב, תוכן שיווקי, מיתוג ופתרונות יצירתיים',           status: 'active',  specialty: ['עיצוב','תוכן','מיתוג'],         color: 'purple' },
 ]
 
 const colorMap: Record<string, { bg: string; border: string; text: string; avatar: string }> = {
@@ -26,34 +27,92 @@ const colorMap: Record<string, { bg: string; border: string; text: string; avata
 }
 
 export default function AgentsPage() {
+  const [userId, setUserId] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'standby'>('all')
   const [filterDept, setFilterDept] = useState<string>('all')
   const [showFilters, setShowFilters] = useState(false)
   const [instructionTarget, setInstructionTarget] = useState<typeof departments[0] | null>(null)
   const [instructionText, setInstructionText] = useState('')
-  const [sentDepts, setSentDepts] = useState<Set<number>>(new Set())
+  const [isSending, setIsSending] = useState(false)
+  const [activeInstructions, setActiveInstructions] = useState<Record<string, { text: string; response?: string; agentName?: string }>>({})
+  const [expandedDept, setExpandedDept] = useState<string | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data }) => {
+      const uid = data.user?.id
+      if (!uid) return
+      setUserId(uid)
+      const { data: rows } = await supabase
+        .from('instructions')
+        .select('data')
+        .eq('user_id', uid)
+        .eq('data->>status', 'active')
+        .order('created_at', { ascending: false })
+      const map: Record<string, { text: string; response?: string; agentName?: string }> = {}
+      for (const row of rows || []) {
+        const d = row.data
+        if (d?.agent && !map[d.agent]) {
+          map[d.agent] = { text: d.text, response: d.agentResponse, agentName: d.agentName }
+        }
+      }
+      setActiveInstructions(map)
+    })
+  }, [])
 
   const filtered = departments.filter(d => {
     if (filterStatus !== 'all' && d.status !== filterStatus) return false
-    if (filterDept !== 'all' && d.name !== filterDept) return false
+    if (filterDept !== 'all' && d.id !== filterDept) return false
     return true
   })
 
-  const sendInstruction = () => {
-    if (!instructionText.trim() || !instructionTarget) return
-    setSentDepts(prev => new Set([...prev, instructionTarget.id]))
+  const sendInstruction = async () => {
+    if (!instructionText.trim() || !instructionTarget || isSending) return
+    setIsSending(true)
+
+    const now = new Date().toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
+    const newInstruction: any = {
+      id: crypto.randomUUID(),
+      text: instructionText.trim(),
+      agent: instructionTarget.id,
+      priority: 'normal',
+      createdAt: now,
+      status: 'active',
+      source: 'department',
+    }
+
+    try {
+      const [aiRes] = await Promise.all([
+        fetch('/api/dept-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ department: instructionTarget.id, instruction: instructionText.trim() }),
+        }),
+      ])
+      const aiData = await aiRes.json()
+      newInstruction.agentResponse = aiData.response || ''
+      newInstruction.agentName = aiData.agent || instructionTarget.agent
+    } catch { /* AI response optional */ }
+
+    const supabase = createClient()
+    await supabase.from('instructions').insert({ id: newInstruction.id, user_id: userId, data: newInstruction })
+
+    setActiveInstructions(prev => ({
+      ...prev,
+      [instructionTarget.id]: { text: newInstruction.text, response: newInstruction.agentResponse, agentName: newInstruction.agentName },
+    }))
     setInstructionText('')
     setInstructionTarget(null)
+    setIsSending(false)
   }
 
   const active = departments.filter(d => d.status === 'active').length
 
   return (
     <div className="min-h-screen">
-      <Header title="מחלקות" subtitle="ניהול וניטור מחלקות הבינה המלאכותית — גבר יזמות" />
+      <Header title="מחלקות" subtitle="ניהול וניטור מחלקות הבינה המלאכותית" />
 
       <div className="p-6 space-y-6 animate-fade-in">
-        {/* Summary */}
         <div className="glass-card rounded-2xl p-4 flex items-center gap-6 flex-wrap">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2.5 w-2.5">
@@ -65,12 +124,9 @@ export default function AgentsPage() {
           <div className="h-4 w-px bg-border-muted" />
           <span className="text-sm text-text-secondary">{departments.length - active} בסטנדבי</span>
           <div className="h-4 w-px bg-border-muted" />
-          <span className="text-sm text-text-secondary">{departments.reduce((s,d)=>s+d.tasksOpen,0)} משימות פתוחות</span>
-          <div className="h-4 w-px bg-border-muted" />
-          <span className="text-sm text-text-secondary">{departments.reduce((s,d)=>s+d.tasksCompleted,0)} משימות הושלמו</span>
+          <span className="text-sm text-text-secondary">{Object.keys(activeInstructions).length} מחלקות עם הוראות פעילות</span>
         </div>
 
-        {/* Filters */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <button onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border transition-all ${showFilters ? 'bg-accent-cyan/10 border-accent-cyan/20 text-accent-cyan' : 'bg-white/5 border-border-muted text-text-muted hover:text-text-secondary'}`}>
@@ -85,7 +141,7 @@ export default function AgentsPage() {
               <div className="flex gap-1">
                 {(['all','active','standby'] as const).map(s => (
                   <button key={s} onClick={() => setFilterStatus(s)}
-                    className={`text-xs px-3 py-1.5 rounded-lg transition-all ${filterStatus===s ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-white/5 text-text-muted hover:text-text-secondary'}`}>
+                    className={`text-xs px-3 py-1.5 rounded-lg transition-all ${filterStatus===s ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-white/5 text-text-muted'}`}>
                     {s==='all'?'הכל':s==='active'?'פעיל':'סטנדבי'}
                   </button>
                 ))}
@@ -96,7 +152,7 @@ export default function AgentsPage() {
               <select value={filterDept} onChange={e => setFilterDept(e.target.value)}
                 className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none">
                 <option value="all" className="bg-bg-card">כל המחלקות</option>
-                {departments.map(d => <option key={d.name} value={d.name} className="bg-bg-card">{d.name}</option>)}
+                {departments.map(d => <option key={d.id} value={d.id} className="bg-bg-card">{d.id}</option>)}
               </select>
             </div>
             <button onClick={() => { setFilterStatus('all'); setFilterDept('all') }}
@@ -106,20 +162,20 @@ export default function AgentsPage() {
           </div>
         )}
 
-        {/* Departments grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {filtered.map(dept => {
             const c = colorMap[dept.color]
-            const sent = sentDepts.has(dept.id)
+            const instrInfo = activeInstructions[dept.id]
+            const isExpanded = expandedDept === dept.id
             return (
-              <div key={dept.id} className={`glass-card rounded-2xl p-5 border ${c.border} transition-all group`}>
+              <div key={dept.id} className={`glass-card rounded-2xl p-5 border ${instrInfo ? 'border-accent-amber/30' : c.border} transition-all`}>
                 <div className="flex items-start gap-4">
                   <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${c.avatar} flex items-center justify-center text-lg font-bold ${c.text} shrink-0`}>
                     {dept.agent[0]}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                      <h3 className="text-sm font-bold text-text-primary">מחלקת {dept.name}</h3>
+                      <h3 className="text-sm font-bold text-text-primary">מחלקת {dept.id}</h3>
                       <span className={`text-xs font-medium ${c.text}`}>{dept.agent} — {dept.role}</span>
                       <span className={`mr-auto text-xs px-2 py-0.5 rounded-full ${dept.status === 'active' ? 'bg-accent-green/10 text-accent-green' : 'bg-white/5 text-text-muted'}`}>
                         {dept.status === 'active' ? 'פעיל' : 'סטנדבי'}
@@ -129,31 +185,35 @@ export default function AgentsPage() {
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {dept.specialty.map(s => <span key={s} className="text-xs bg-white/5 text-text-muted px-2 py-0.5 rounded-lg">{s}</span>)}
                     </div>
-                    <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border-muted">
-                      <span className="flex items-center gap-1.5 text-xs text-text-muted">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-accent-green" />{dept.tasksCompleted} הושלמו
-                      </span>
-                      {dept.tasksOpen > 0 && (
-                        <span className="flex items-center gap-1.5 text-xs text-text-muted">
-                          <Clock className="w-3.5 h-3.5 text-accent-amber" />{dept.tasksOpen} פתוחות
-                        </span>
-                      )}
-                      <button onClick={() => { setInstructionTarget(dept); setInstructionText('') }}
-                        className={`mr-auto flex items-center gap-1 text-xs ${c.text} hover:underline`}>
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        {sent ? 'שלח הוראה נוספת' : 'שלח הוראה'}
-                      </button>
-                    </div>
-                    <div className="flex items-start gap-1.5 mt-2">
-                      <Activity className="w-3 h-3 text-text-muted mt-0.5 shrink-0" />
-                      <p className="text-xs text-text-muted">{dept.lastAction}</p>
-                    </div>
-                    {sent && (
-                      <div className="mt-2 flex items-center gap-1.5 bg-accent-green/5 border border-accent-green/20 rounded-xl px-3 py-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-accent-green" />
-                        <span className="text-xs text-accent-green">ההוראה נשלחה בהצלחה</span>
+
+                    {instrInfo && (
+                      <div className="mt-3 rounded-xl border border-accent-amber/20 bg-accent-amber/5 p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-accent-amber flex items-center gap-1">
+                            <Activity className="w-3 h-3" /> הוראה פעילה
+                          </span>
+                          <button onClick={() => setExpandedDept(isExpanded ? null : dept.id)}
+                            className="text-text-muted hover:text-text-secondary">
+                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                        <p className="text-xs text-text-secondary line-clamp-1">{instrInfo.text}</p>
+                        {isExpanded && instrInfo.response && (
+                          <div className="pt-2 border-t border-accent-amber/10">
+                            <p className="text-xs font-semibold text-text-secondary mb-1">{instrInfo.agentName} מגיב:</p>
+                            <p className="text-xs text-text-muted leading-relaxed whitespace-pre-wrap">{instrInfo.response}</p>
+                          </div>
+                        )}
                       </div>
                     )}
+
+                    <div className="flex items-center justify-end mt-3 pt-3 border-t border-border-muted">
+                      <button onClick={() => { setInstructionTarget(dept); setInstructionText('') }}
+                        className={`flex items-center gap-1 text-xs ${c.text} hover:underline`}>
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        {instrInfo ? 'שלח הוראה נוספת' : 'שלח הוראה'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -162,35 +222,37 @@ export default function AgentsPage() {
         </div>
       </div>
 
-      {/* Send instruction modal */}
       {instructionTarget && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setInstructionTarget(null)}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => !isSending && setInstructionTarget(null)}>
           <div className="bg-bg-card border border-border-muted rounded-2xl p-6 max-w-md w-full space-y-4 animate-fade-in" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-accent-cyan" />
-                הוראה למחלקת {instructionTarget.name}
+                הוראה למחלקת {instructionTarget.id}
               </h3>
-              <button onClick={() => setInstructionTarget(null)} className="text-text-muted hover:text-text-primary">
-                <X className="w-5 h-5" />
-              </button>
+              {!isSending && <button onClick={() => setInstructionTarget(null)} className="text-text-muted hover:text-text-primary"><X className="w-5 h-5" /></button>}
             </div>
             <div className="flex items-center gap-2 text-xs text-text-secondary bg-white/5 rounded-xl px-3 py-2">
               <Bot className="w-3.5 h-3.5" />
               <span>{instructionTarget.agent} — {instructionTarget.role}</span>
             </div>
             <textarea value={instructionText} onChange={e => setInstructionText(e.target.value)}
-              placeholder={`תן הוראה למחלקת ${instructionTarget.name}...`} rows={4}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-cyan/50 transition-all resize-none" />
+              placeholder={`תן הוראה למחלקת ${instructionTarget.id}...`} rows={4} disabled={isSending}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-cyan/50 transition-all resize-none disabled:opacity-60" />
             <div className="flex gap-2">
-              <button onClick={sendInstruction} disabled={!instructionText.trim()}
+              <button onClick={sendInstruction} disabled={!instructionText.trim() || isSending}
                 className="flex-1 flex items-center justify-center gap-2 bg-accent-cyan text-bg-base font-semibold text-sm py-2.5 rounded-xl hover:bg-accent-cyan/90 disabled:opacity-40 transition-all">
-                <Send className="w-4 h-4" /> שלח הוראה
+                {isSending ? (
+                  <><span className="w-4 h-4 border-2 border-bg-base border-t-transparent rounded-full animate-spin" /> ממתין לתגובת {instructionTarget.agent}...</>
+                ) : (
+                  <><Send className="w-4 h-4" /> שלח הוראה</>
+                )}
               </button>
-              <button onClick={() => setInstructionTarget(null)}
-                className="px-4 bg-white/5 text-text-secondary text-sm rounded-xl hover:bg-white/8 transition-all">
-                ביטול
-              </button>
+              {!isSending && (
+                <button onClick={() => setInstructionTarget(null)} className="px-4 bg-white/5 text-text-secondary text-sm rounded-xl hover:bg-white/8 transition-all">
+                  ביטול
+                </button>
+              )}
             </div>
           </div>
         </div>

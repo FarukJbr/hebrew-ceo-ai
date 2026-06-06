@@ -221,7 +221,7 @@ export default function BoardPage() {
     }))
     if (updatedDecision) {
       const supabase = createClient()
-      await supabase.from('board_decisions').update({ data: updatedDecision }).eq('id', id).eq('user_id', userId)
+      await supabase.from('board_decisions').upsert({ id: (updatedDecision as BoardDecision).id, user_id: userId, data: updatedDecision })
     }
   }
 
@@ -230,7 +230,7 @@ export default function BoardPage() {
     setIsSubmitting(true)
 
     const placeholderDecision: BoardDecision = {
-      id: 'bd-' + Date.now(),
+      id: crypto.randomUUID(),
       title: nTitle,
       description: nDesc,
       date: new Date().toLocaleDateString('he-IL').replace(/\./g,'/'),
@@ -258,10 +258,10 @@ export default function BoardPage() {
       const updatedDecision = { ...placeholderDecision, directorVotes: aiVotes }
       setDecisions(prev => prev.map(d => d.id === placeholderDecision.id ? updatedDecision : d))
       const supabase = createClient()
-      await supabase.from('board_decisions').insert({ id: updatedDecision.id, user_id: userId, data: updatedDecision })
+      await supabase.from('board_decisions').upsert({ id: updatedDecision.id, user_id: userId, data: updatedDecision })
     } catch {
       const supabase = createClient()
-      await supabase.from('board_decisions').insert({ id: placeholderDecision.id, user_id: userId, data: placeholderDecision })
+      await supabase.from('board_decisions').upsert({ id: placeholderDecision.id, user_id: userId, data: placeholderDecision })
     } finally {
       setIsSubmitting(false)
     }
