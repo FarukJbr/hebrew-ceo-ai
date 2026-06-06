@@ -26,7 +26,7 @@ interface BoardDecision {
 }
 
 const DIRECTORS = ['OpenAI', 'Gemini', 'Claude']
-const CATEGORIES = ['השקעות נדל״ן','תקציב','התרחבות','משאבי אנוש','טכנולוגיה','אסטרטגיה','תפעול','משפטי']
+const CATEGORIES = ['אסטרטגיה','תקציב','שיווק ופרסום','טכנולוגיה','משאבי אנוש','השקעות','התרחבות','תפעול','משפטי','כללי']
 
 const resultConfig: Record<VoteResult, { label: string; color: string; bg: string }> = {
   approved: { label: 'אושר',  color: 'text-accent-green', bg: 'bg-accent-green/10' },
@@ -161,7 +161,8 @@ export default function BoardPage() {
   const [nTitle, setNTitle] = useState('')
   const [nDesc, setNDesc] = useState('')
   const [nCategory, setNCategory] = useState(CATEGORIES[0])
-  const [nProposed, setNProposed] = useState('הנהלה — אריאל AI')
+  const [nProposed, setNProposed] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -169,6 +170,8 @@ export default function BoardPage() {
       const uid = data.user?.id
       if (!uid) { setIsLoading(false); return }
       setUserId(uid)
+      const email = data.user?.email || ''
+      setNProposed(email.split('@')[0] || 'יו״ר')
       const { data: rows } = await supabase
         .from('board_decisions')
         .select('data')
@@ -213,8 +216,10 @@ export default function BoardPage() {
   }
 
   const addProposal = async () => {
-    if (!nTitle.trim()) return
-    const newDecision: BoardDecision = {
+    if (!nTitle.trim() || isSubmitting) return
+    setIsSubmitting(true)
+
+    const placeholderDecision: BoardDecision = {
       id: 'bd-' + Date.now(),
       title: nTitle,
       description: nDesc,
@@ -225,10 +230,30 @@ export default function BoardPage() {
       result: 'pending',
       category: nCategory,
     }
-    setDecisions(prev => [newDecision, ...prev])
-    const supabase = createClient()
-    await supabase.from('board_decisions').insert({ id: newDecision.id, user_id: userId, data: newDecision })
+    setDecisions(prev => [placeholderDecision, ...prev])
     setNTitle(''); setNDesc(''); setNCategory(CATEGORIES[0]); setShowForm(false)
+
+    try {
+      const res = await fetch('/api/board', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: placeholderDecision.title, description: placeholderDecision.description }),
+      })
+      const aiData = await res.json()
+      const aiVotes: DirectorVote[] = (aiData.directors || []).map((d: any) => ({
+        director: d.director,
+        vote: d.vote as 'for' | 'against' | 'abstain',
+      }))
+      const updatedDecision = { ...placeholderDecision, directorVotes: aiVotes }
+      setDecisions(prev => prev.map(d => d.id === placeholderDecision.id ? updatedDecision : d))
+      const supabase = createClient()
+      await supabase.from('board_decisions').insert({ id: updatedDecision.id, user_id: userId, data: updatedDecision })
+    } catch {
+      const supabase = createClient()
+      await supabase.from('board_decisions').insert({ id: placeholderDecision.id, user_id: userId, data: placeholderDecision })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const filtered = decisions.filter(d => {
@@ -333,9 +358,11 @@ export default function BoardPage() {
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none" />
               </div>
               <div className="flex items-end gap-2">
-                <button onClick={addProposal}
-                  className="bg-accent-cyan text-bg-base font-semibold text-xs px-4 py-2 rounded-xl hover:bg-accent-cyan/90 transition-all">
-                  הגש הצעה
+                <button onClick={addProposal} disabled={isSubmitting}
+                  className="bg-accent-cyan text-bg-base font-semibold text-xs px-4 py-2 rounded-xl hover:bg-accent-cyan/90 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5">
+                  {isSubmitting ? (
+                    <><span className="w-3 h-3 border border-bg-base border-t-transparent rounded-full animate-spin" /> שולח לדירקטורים...</>
+                  ) : 'הגש הצעה'}
                 </button>
                 <button onClick={() => setShowForm(false)}
                   className="bg-white/5 text-text-secondary text-xs px-3 py-2 rounded-xl hover:bg-white/8 transition-all">
