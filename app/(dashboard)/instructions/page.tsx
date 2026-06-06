@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
-import { Sparkles, Plus, Trash2, CheckCircle2, Clock, X, ChevronDown, ChevronUp, Filter, Bot, FileText, Inbox, AlertCircle, Loader2 } from 'lucide-react'
+import { Sparkles, Plus, Trash2, CheckCircle2, Clock, X, ChevronDown, ChevronUp, Filter, Bot, FileText, Inbox, AlertCircle, Loader2, WifiOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 type Priority = 'urgent' | 'high' | 'normal'
@@ -69,6 +69,7 @@ export default function InstructionsPage() {
   const [fStatus, setFStatus] = useState<InstructionStatus | 'all'>('all')
   const [fPriority, setFPriority] = useState<Priority | 'all'>('all')
   const [fDept, setFDept] = useState<string>('all')
+  const [dbError, setDbError] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -109,7 +110,9 @@ export default function InstructionsPage() {
 
   const upsertInstruction = async (inst: Instruction) => {
     const supabase = createClient()
-    await supabase.from('instructions').upsert({ id: inst.id, user_id: userId, data: inst })
+    const { error } = await supabase.from('instructions').upsert({ id: inst.id, user_id: userId, data: inst })
+    if (error) setDbError(`שגיאת שמירה (${error.code}): ${error.message}`)
+    else setDbError(null)
   }
 
   const addInstruction = async () => {
@@ -154,6 +157,19 @@ export default function InstructionsPage() {
       <Header title="הוראות AI" subtitle="מעקב הוראות ומשימות לסוכני הבינה המלאכותית" />
 
       <div className="p-6 space-y-5 animate-fade-in">
+        {/* DB error banner */}
+        {dbError && (
+          <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/30 rounded-2xl p-4">
+            <WifiOff className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-red-400 mb-0.5">הנתונים לא נשמרו</p>
+              <p className="text-xs text-red-300/80 break-all">{dbError}</p>
+              <a href="/setup" className="text-xs text-red-400 underline mt-1 inline-block">לחץ כאן לתיקון מסד הנתונים</a>
+            </div>
+            <button onClick={() => setDbError(null)} className="text-red-400/60 hover:text-red-400"><X className="w-4 h-4" /></button>
+          </div>
+        )}
+
         {/* Status summary */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {(Object.entries(statusConfig) as [InstructionStatus, typeof statusConfig[InstructionStatus]][]).map(([key, cfg]) => (

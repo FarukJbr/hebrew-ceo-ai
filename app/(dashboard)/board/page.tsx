@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
-import { Vote, Plus, ThumbsUp, ThumbsDown, Minus, Users, Calendar, FileText, ChevronDown, ChevronUp, CheckCircle2, Filter, X } from 'lucide-react'
+import { Vote, Plus, ThumbsUp, ThumbsDown, Minus, Users, Calendar, FileText, ChevronDown, ChevronUp, CheckCircle2, Filter, X, WifiOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 type VoteResult = 'approved' | 'rejected' | 'pending'
@@ -173,6 +173,7 @@ export default function BoardPage() {
   const [nCategory, setNCategory] = useState(CATEGORIES[0])
   const [nProposed, setNProposed] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [dbError, setDbError] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -221,7 +222,9 @@ export default function BoardPage() {
     }))
     if (updatedDecision) {
       const supabase = createClient()
-      await supabase.from('board_decisions').upsert({ id: (updatedDecision as BoardDecision).id, user_id: userId, data: updatedDecision })
+      const { error } = await supabase.from('board_decisions').upsert({ id: (updatedDecision as BoardDecision).id, user_id: userId, data: updatedDecision })
+      if (error) setDbError(`שגיאת שמירה (${error.code}): ${error.message}`)
+      else setDbError(null)
     }
   }
 
@@ -258,10 +261,13 @@ export default function BoardPage() {
       const updatedDecision = { ...placeholderDecision, directorVotes: aiVotes }
       setDecisions(prev => prev.map(d => d.id === placeholderDecision.id ? updatedDecision : d))
       const supabase = createClient()
-      await supabase.from('board_decisions').upsert({ id: updatedDecision.id, user_id: userId, data: updatedDecision })
+      const { error } = await supabase.from('board_decisions').upsert({ id: updatedDecision.id, user_id: userId, data: updatedDecision })
+      if (error) setDbError(`שגיאת שמירה (${error.code}): ${error.message}`)
+      else setDbError(null)
     } catch {
       const supabase = createClient()
-      await supabase.from('board_decisions').upsert({ id: placeholderDecision.id, user_id: userId, data: placeholderDecision })
+      const { error } = await supabase.from('board_decisions').upsert({ id: placeholderDecision.id, user_id: userId, data: placeholderDecision })
+      if (error) setDbError(`שגיאת שמירה (${error.code}): ${error.message}`)
     } finally {
       setIsSubmitting(false)
     }
@@ -281,6 +287,18 @@ export default function BoardPage() {
       <Header title="דירקטוריון" subtitle="החלטות, הצבעות ופרוטוקולים | דירקטורים: יו״ר + OpenAI + Gemini + Claude" />
 
       <div className="p-6 space-y-6 animate-fade-in">
+        {dbError && (
+          <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/30 rounded-2xl p-4">
+            <WifiOff className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-red-400 mb-0.5">הנתונים לא נשמרו</p>
+              <p className="text-xs text-red-300/80 break-all">{dbError}</p>
+              <a href="/setup" className="text-xs text-red-400 underline mt-1 inline-block">לחץ כאן לתיקון מסד הנתונים</a>
+            </div>
+            <button onClick={() => setDbError(null)} className="text-red-400/60 hover:text-red-400"><X className="w-4 h-4" /></button>
+          </div>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
-import { Bot, CheckCircle2, Clock, Activity, MessageSquare, X, Send, Filter, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
+import { Bot, CheckCircle2, Clock, Activity, MessageSquare, X, Send, Filter, Sparkles, ChevronDown, ChevronUp, WifiOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const departments = [
@@ -36,6 +36,7 @@ export default function AgentsPage() {
   const [isSending, setIsSending] = useState(false)
   const [activeInstructions, setActiveInstructions] = useState<Record<string, { text: string; response?: string; agentName?: string }>>({})
   const [expandedDept, setExpandedDept] = useState<string | null>(null)
+  const [dbError, setDbError] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -83,7 +84,8 @@ export default function AgentsPage() {
       source: 'department',
       timeline: [{ timestamp: ts(), status: 'received', note: `ההוראה התקבלה במחלקת ${instructionTarget.id}` }],
     }
-    await supabase.from('instructions').upsert({ id: newInstruction.id, user_id: userId, data: newInstruction })
+    const { error: e1 } = await supabase.from('instructions').upsert({ id: newInstruction.id, user_id: userId, data: newInstruction })
+    if (e1) setDbError(`שגיאת שמירה (${e1.code}): ${e1.message}`)
 
     newInstruction.status = 'in_progress'
     newInstruction.timeline.push({ timestamp: ts(), status: 'in_progress', note: `${instructionTarget.agent} מתחיל לטפל בהוראה` })
@@ -124,6 +126,17 @@ export default function AgentsPage() {
       <Header title="מחלקות" subtitle="ניהול וניטור מחלקות הבינה המלאכותית" />
 
       <div className="p-6 space-y-6 animate-fade-in">
+        {dbError && (
+          <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/30 rounded-2xl p-4">
+            <WifiOff className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-red-400 mb-0.5">הנתונים לא נשמרו</p>
+              <p className="text-xs text-red-300/80 break-all">{dbError}</p>
+              <a href="/setup" className="text-xs text-red-400 underline mt-1 inline-block">לחץ כאן לתיקון מסד הנתונים</a>
+            </div>
+            <button onClick={() => setDbError(null)} className="text-red-400/60 hover:text-red-400"><X className="w-4 h-4" /></button>
+          </div>
+        )}
         <div className="glass-card rounded-2xl p-4 flex items-center gap-6 flex-wrap">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2.5 w-2.5">
