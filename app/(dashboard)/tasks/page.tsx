@@ -19,7 +19,7 @@ interface Task {
   category: string
 }
 
-const DEPARTMENTS = ['הנהלה','כספים','שיווק','משפטי','משאבי אנוש','טכנולוגיה','מכירות','תפעול','אסטרטגיה','קריאייטיב','נדל״ן']
+const DEPARTMENTS = ['הנהלה','כספים','שיווק','משפטי','משאבי אנוש','טכנולוגיה','תפעול','אסטרטגיה','קריאייטיב','מכירות']
 
 const priorityConfig: Record<Priority, { label: string; color: string; bg: string }> = {
   high:   { label: 'גבוהה',  color: 'text-accent-red',   bg: 'bg-accent-red/10' },

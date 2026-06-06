@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 
 type Priority = 'urgent' | 'high' | 'normal'
 
-const DEPARTMENTS = ['הנהלה','כספים','שיווק','משפטי','משאבי אנוש','טכנולוגיה','תפעול','אסטרטגיה','קריאייטיב','מכירות','נדל״ן']
+const DEPARTMENTS = ['הנהלה','כספים','שיווק','משפטי','משאבי אנוש','טכנולוגיה','תפעול','אסטרטגיה','קריאייטיב','מכירות']
 
 const DEPT_ROLE: Record<string, string> = {
   'הנהלה':        'CEO AI — אריאל',
@@ -20,7 +20,6 @@ const DEPT_ROLE: Record<string, string> = {
   'אסטרטגיה':     'Strategy AI — דן',
   'קריאייטיב':    'Creative AI — אלה',
   'מכירות':       'מכירות AI — תמר',
-  'נדל״ן':        'נדל״ן AI — שירה',
   'כולם':         'כל המחלקות',
 }
 
