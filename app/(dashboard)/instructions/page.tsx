@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
-import { Sparkles, Plus, Trash2, CheckCircle2, Clock, X, ChevronDown, ChevronUp, Filter } from 'lucide-react'
+import { Sparkles, Plus, Trash2, CheckCircle2, Clock, X, ChevronDown, ChevronUp, Filter, Bot, FileText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 type Priority = 'urgent' | 'high' | 'normal'
@@ -30,6 +30,10 @@ interface Instruction {
   priority: Priority
   createdAt: string
   status: 'active' | 'done'
+  agentResponse?: string
+  workProduct?: string
+  agentName?: string
+  source?: string
 }
 
 const priorityConfig: Record<Priority, { label: string; color: string; bg: string; border: string }> = {
@@ -258,13 +262,27 @@ export default function InstructionsPage() {
                             <Clock className="w-3 h-3" />{inst.createdAt}
                           </span>
                         </div>
-                        <p className={`text-sm text-text-primary leading-relaxed ${!isExpanded ? 'line-clamp-2' : ''}`}>
+                        <p className="text-sm text-text-primary leading-relaxed">
                           {inst.text}
                         </p>
-                        {inst.text.length > 100 && (
-                          <button onClick={() => toggleExpand(inst.id)} className="flex items-center gap-1 text-xs text-accent-cyan mt-1 hover:underline">
-                            {isExpanded ? <><ChevronUp className="w-3 h-3" />הצג פחות</> : <><ChevronDown className="w-3 h-3" />קרא עוד</>}
-                          </button>
+                        {inst.workProduct && (
+                          <>
+                            <button onClick={() => toggleExpand(inst.id)}
+                              className="flex items-center gap-1 text-xs text-accent-cyan mt-2 hover:underline">
+                              <FileText className="w-3 h-3" />
+                              {isExpanded ? 'הסתר תוצר עבודה' : 'הצג תוצר עבודה'}
+                              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            </button>
+                            {isExpanded && (
+                              <div className="mt-3 bg-white/3 border border-accent-cyan/15 rounded-xl p-4">
+                                <div className="flex items-center gap-1.5 mb-2">
+                                  <Bot className="w-3.5 h-3.5 text-accent-cyan" />
+                                  <span className="text-xs font-semibold text-accent-cyan">{inst.agentName || inst.agent} — תוצר עבודה</span>
+                                </div>
+                                <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">{inst.workProduct}</p>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                       <div className="flex gap-1 shrink-0">

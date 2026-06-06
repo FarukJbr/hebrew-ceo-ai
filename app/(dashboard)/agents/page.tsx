@@ -90,7 +90,8 @@ export default function AgentsPage() {
         }),
       ])
       const aiData = await aiRes.json()
-      newInstruction.agentResponse = aiData.response || ''
+      newInstruction.agentResponse = aiData.acknowledgment || aiData.response || ''
+      newInstruction.workProduct = aiData.workProduct || ''
       newInstruction.agentName = aiData.agent || instructionTarget.agent
     } catch { /* AI response optional */ }
 
@@ -99,7 +100,7 @@ export default function AgentsPage() {
 
     setActiveInstructions(prev => ({
       ...prev,
-      [instructionTarget.id]: { text: newInstruction.text, response: newInstruction.agentResponse, agentName: newInstruction.agentName },
+      [instructionTarget.id]: { text: newInstruction.text, response: newInstruction.workProduct || newInstruction.agentResponse, agentName: newInstruction.agentName },
     }))
     setInstructionText('')
     setInstructionTarget(null)
