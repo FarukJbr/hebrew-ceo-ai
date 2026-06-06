@@ -97,16 +97,25 @@ export default function ChatPage() {
       content,
       time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
     }
-    setMessages(prev => [...prev, userMsg])
+    const updatedMessages = [...messages, userMsg]
+    setMessages(updatedMessages)
     setInput('')
     setLoading(true)
 
     await supabase.from('chat_messages').insert({ id: userMsg.id, user_id: userId, data: userMsg })
 
-    await new Promise(r => setTimeout(r, 1200))
-
-    const responseText = agentResponses[content] ||
-      `קיבלתי את שאלתך: "${content}". אני מעבד את הנתונים ומכין תשובה מפורטת. בגרסה הבאה של המערכת, אתחבר ל-API של Claude AI ואספק תשובות חיות. כרגע, אני עונה מתוך מאגר הידע המובנה שלי.`
+    let responseText = ''
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: updatedMessages }),
+      })
+      const data = await res.json()
+      responseText = data.content || data.error || 'שגיאה בקבלת תשובה מה-AI.'
+    } catch {
+      responseText = 'לא ניתן להתחבר ל-AI כרגע. נסה שוב.'
+    }
 
     const assistantMsg: Message = {
       id: 'msg-' + (Date.now() + 1),
