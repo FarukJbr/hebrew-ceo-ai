@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
 import { Sparkles, Plus, Trash2, CheckCircle2, Clock, X, ChevronDown, ChevronUp, Filter } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 type Priority = 'urgent' | 'high' | 'normal'
 
@@ -21,22 +22,13 @@ const DEPT_ROLE: Record<string, string> = {
 }
 
 interface Instruction {
-  id: number
+  id: string
   text: string
   agent: string
   priority: Priority
   createdAt: string
   status: 'active' | 'done'
 }
-
-const initialInstructions: Instruction[] = [
-  { id: 1, text: 'הכן ניתוח מקיף של שוק הנדל״ן המסחרי בתל אביב לרבעון Q3 — כולל מגמות מחירים, ביקוש והיצע ותחזית לשנה הקרובה', agent: 'נדל״ן', priority: 'urgent', createdAt: 'היום, 09:15', status: 'active' },
-  { id: 2, text: 'בצע הערכת סיכונים לתיק ההשקעות הנוכחי ותן המלצות לאיזון מחדש בהתחשב במגמות שוק עדכניות', agent: 'כספים', priority: 'high', createdAt: 'היום, 08:30', status: 'active' },
-  { id: 3, text: 'פרסם 3 משרות: מנהל פיתוח עסקי, אנליסט פיננסי, רכז שיווק — כולל תיאור תפקיד מלא ודרישות', agent: 'משאבי אנוש', priority: 'normal', createdAt: 'אתמול, 16:00', status: 'active' },
-  { id: 4, text: 'תכן קמפיין שיווקי לשוק האירופי — תקציב ₪80K, יעד: 20 לידים מוסדיים, ציר זמן 3 חודשים', agent: 'שיווק', priority: 'high', createdAt: 'אתמול, 14:20', status: 'active' },
-  { id: 5, text: 'סקור את כל חוזי הספקים שפג תוקפם ב-2026 והכן המלצות לחידוש/החלפה עם ניתוח עלות-תועלת', agent: 'משפטי', priority: 'normal', createdAt: 'לפני יומיים', status: 'done' },
-  { id: 6, text: 'הכן דוח ביצועים שבועי לכל המחלקות ושלח סיכום מנהלים עד יום א׳', agent: 'הנהלה', priority: 'normal', createdAt: 'לפני יומיים', status: 'done' },
-]
 
 const priorityConfig: Record<Priority, { label: string; color: string; bg: string; border: string }> = {
   urgent: { label: 'דחוף',   color: 'text-accent-red',   bg: 'bg-accent-red/10',   border: 'border-accent-red/20' },
@@ -45,9 +37,11 @@ const priorityConfig: Record<Priority, { label: string; color: string; bg: strin
 }
 
 export default function InstructionsPage() {
-  const [instructions, setInstructions] = useState<Instruction[]>(initialInstructions)
+  const [userId, setUserId] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [instructions, setInstructions] = useState<Instruction[]>([])
   const [showForm, setShowForm] = useState(false)
-  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [text, setText] = useState('')
   const [agent, setAgent] = useState('הנהלה')
   const [priority, setPriority] = useState<Priority>('normal')
@@ -57,6 +51,31 @@ export default function InstructionsPage() {
   const [fStatus, setFStatus] = useState<'all' | 'active' | 'done'>('all')
   const [fPriority, setFPriority] = useState<Priority | 'all'>('all')
   const [fDept, setFDept] = useState<string>('all')
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data }) => {
+      const uid = data.user?.id
+      if (!uid) { setIsLoading(false); return }
+      setUserId(uid)
+      const { data: rows } = await supabase
+        .from('instructions')
+        .select('data')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false })
+      setInstructions(rows?.map((r: any) => r.data) || [])
+      setIsLoading(false)
+    })
+  }, [])
+
+  if (isLoading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
+        <p className="text-sm text-text-muted">טוען נתונים...</p>
+      </div>
+    </div>
+  )
 
   const filtered = instructions.filter(i => {
     if (fStatus !== 'all' && i.status !== fStatus) return false
@@ -68,16 +87,45 @@ export default function InstructionsPage() {
   const active = filtered.filter(i => i.status === 'active')
   const done = filtered.filter(i => i.status === 'done')
 
-  const addInstruction = () => {
+  const addInstruction = async () => {
     if (!text.trim()) return
-    setInstructions(prev => [{ id: Date.now(), text: text.trim(), agent, priority, createdAt: 'עכשיו', status: 'active' }, ...prev])
+    const newInstruction: Instruction = {
+      id: 'instruction-' + Date.now(),
+      text: text.trim(),
+      agent,
+      priority,
+      createdAt: 'עכשיו',
+      status: 'active',
+    }
+    setInstructions(prev => [newInstruction, ...prev])
     setText(''); setAgent('הנהלה'); setPriority('normal'); setShowForm(false)
+    const supabase = createClient()
+    await supabase.from('instructions').insert({ id: newInstruction.id, user_id: userId, data: newInstruction })
   }
 
-  const markDone = (id: number) => setInstructions(prev => prev.map(i => i.id === id ? { ...i, status: 'done' } : i))
-  const markActive = (id: number) => setInstructions(prev => prev.map(i => i.id === id ? { ...i, status: 'active' } : i))
-  const deleteI = (id: number) => setInstructions(prev => prev.filter(i => i.id !== id))
-  const toggleExpand = (id: number) => setExpandedId(prev => prev === id ? null : id)
+  const markDone = async (id: string) => {
+    setInstructions(prev => prev.map(i => i.id === id ? { ...i, status: 'done' } : i))
+    const updated = instructions.find(i => i.id === id)
+    if (!updated) return
+    const supabase = createClient()
+    await supabase.from('instructions').update({ data: { ...updated, status: 'done' } }).eq('id', id).eq('user_id', userId)
+  }
+
+  const markActive = async (id: string) => {
+    setInstructions(prev => prev.map(i => i.id === id ? { ...i, status: 'active' } : i))
+    const updated = instructions.find(i => i.id === id)
+    if (!updated) return
+    const supabase = createClient()
+    await supabase.from('instructions').update({ data: { ...updated, status: 'active' } }).eq('id', id).eq('user_id', userId)
+  }
+
+  const deleteI = async (id: string) => {
+    setInstructions(prev => prev.filter(i => i.id !== id))
+    const supabase = createClient()
+    await supabase.from('instructions').delete().eq('id', id).eq('user_id', userId)
+  }
+
+  const toggleExpand = (id: string) => setExpandedId(prev => prev === id ? null : id)
 
   return (
     <div className="min-h-screen">

@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
 import { Vote, Plus, ThumbsUp, ThumbsDown, Minus, Users, Calendar, FileText, ChevronDown, ChevronUp, CheckCircle2, Filter, X } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 type VoteResult = 'approved' | 'rejected' | 'pending'
 
@@ -12,7 +13,7 @@ interface DirectorVote {
 }
 
 interface BoardDecision {
-  id: number
+  id: string
   title: string
   description: string
   date: string
@@ -26,68 +27,6 @@ interface BoardDecision {
 
 const DIRECTORS = ['OpenAI', 'Gemini', 'Claude']
 const CATEGORIES = ['השקעות נדל״ן','תקציב','התרחבות','משאבי אנוש','טכנולוגיה','אסטרטגיה','תפעול','משפטי']
-
-const initialDecisions: BoardDecision[] = [
-  {
-    id: 1,
-    title: 'השקעה בנכס מסחרי — תל אביב',
-    description: 'אישור השקעה בנכס מסחרי ברח׳ אלנבי 45, תל אביב בסך ₪3.2M. הנכס מיועד להשכרה לעסקים עם תשואה צפויה של 7% שנתי',
-    date: '10/06/2026',
-    proposedBy: 'מחלקת נדל״ן — שירה AI',
-    directorVotes: DIRECTORS.map(d => ({ director: d, vote: null })),
-    chairmanVote: null,
-    result: 'pending',
-    category: 'השקעות נדל״ן',
-  },
-  {
-    id: 2,
-    title: 'אישור תקציב שיווק Q3',
-    description: 'אישור תקציב שיווק של ₪240,000 לרבעון Q3 2026, כולל קמפיין אירופה וכנסים מקצועיים',
-    date: '03/06/2026',
-    proposedBy: 'מחלקת שיווק — יובל AI',
-    directorVotes: [{ director: 'OpenAI', vote: 'for' }, { director: 'Gemini', vote: 'for' }, { director: 'Claude', vote: 'for' }],
-    chairmanVote: 'for',
-    result: 'approved',
-    category: 'תקציב',
-    notes: 'אושר פה אחד על ידי כל הדירקטוריון. תנאי: דוח מעקב חודשי על ביצוע התקציב.',
-  },
-  {
-    id: 3,
-    title: 'כניסה לשותפות עסקית — חברת Gamma',
-    description: 'הצטרפות לשותפות עם חברת Gamma לפיתוח שירותי ייעוץ לשוק הגרמני, השקעה ראשונית ₪500K',
-    date: '28/05/2026',
-    proposedBy: 'מחלקת הנהלה — אריאל AI',
-    directorVotes: [{ director: 'OpenAI', vote: 'for' }, { director: 'Gemini', vote: 'against' }, { director: 'Claude', vote: 'for' }],
-    chairmanVote: 'for',
-    result: 'approved',
-    category: 'התרחבות',
-    notes: 'אושר ברוב (3 בעד, 1 נגד). יש להכין הסכם שותפות מפורט.',
-  },
-  {
-    id: 4,
-    title: 'גיוס מנהל בכיר — VP Finance',
-    description: 'אישור גיוס סמנכ״ל כספים חיצוני, תקציב שכר ₪45K/חודש + תנאים נלווים',
-    date: '15/05/2026',
-    proposedBy: 'מחלקת משאבי אנוש — דניאל AI',
-    directorVotes: [{ director: 'OpenAI', vote: 'for' }, { director: 'Gemini', vote: 'for' }, { director: 'Claude', vote: 'for' }],
-    chairmanVote: 'for',
-    result: 'approved',
-    category: 'משאבי אנוש',
-    notes: 'אושר פה אחד.',
-  },
-  {
-    id: 5,
-    title: 'רכישת כלי AI לניתוח נתונים',
-    description: 'רכישת מנוי שנתי לפלטפורמת BI מתקדמת — ₪85K לשנה',
-    date: '01/05/2026',
-    proposedBy: 'מחלקת טכנולוגיה — רון AI',
-    directorVotes: [{ director: 'OpenAI', vote: 'against' }, { director: 'Gemini', vote: 'against' }, { director: 'Claude', vote: 'for' }],
-    chairmanVote: 'against',
-    result: 'rejected',
-    category: 'טכנולוגיה',
-    notes: 'נדחה ברוב (3 נגד, 1 בעד). הוחלט לבחון חלופות זולות יותר.',
-  },
-]
 
 const resultConfig: Record<VoteResult, { label: string; color: string; bg: string }> = {
   approved: { label: 'אושר',  color: 'text-accent-green', bg: 'bg-accent-green/10' },
@@ -103,7 +42,7 @@ const voteColor = (v: 'for'|'against'|'abstain'|null) =>
 
 interface DecisionCardProps {
   decision: BoardDecision
-  onVote: (id: number, vote: 'for' | 'against' | 'abstain') => void
+  onVote: (id: string, vote: 'for' | 'against' | 'abstain') => void
 }
 
 function DecisionCard({ decision, onVote }: DecisionCardProps) {
@@ -211,7 +150,9 @@ function DecisionCard({ decision, onVote }: DecisionCardProps) {
 }
 
 export default function BoardPage() {
-  const [decisions, setDecisions] = useState<BoardDecision[]>(initialDecisions)
+  const [decisions, setDecisions] = useState<BoardDecision[]>([])
+  const [userId, setUserId] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filterResult, setFilterResult] = useState<VoteResult | 'all'>('all')
   const [filterCategory, setFilterCategory] = useState('all')
@@ -222,7 +163,33 @@ export default function BoardPage() {
   const [nCategory, setNCategory] = useState(CATEGORIES[0])
   const [nProposed, setNProposed] = useState('הנהלה — אריאל AI')
 
-  const handleVote = (id: number, vote: 'for' | 'against' | 'abstain') => {
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data }) => {
+      const uid = data.user?.id
+      if (!uid) { setIsLoading(false); return }
+      setUserId(uid)
+      const { data: rows } = await supabase
+        .from('board_decisions')
+        .select('data')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false })
+      setDecisions(rows?.map((r: any) => r.data) || [])
+      setIsLoading(false)
+    })
+  }, [])
+
+  if (isLoading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
+        <p className="text-sm text-text-muted">טוען נתונים...</p>
+      </div>
+    </div>
+  )
+
+  const handleVote = async (id: string, vote: 'for' | 'against' | 'abstain') => {
+    let updatedDecision: BoardDecision | null = null
     setDecisions(prev => prev.map(d => {
       if (d.id !== id) return d
       const newD = { ...d, chairmanVote: vote }
@@ -236,17 +203,31 @@ export default function BoardPage() {
       const forCount = aiVotes.filter(v=>v.vote==='for').length + (vote === 'for' ? 1 : 0)
       const againstCount = aiVotes.filter(v=>v.vote==='against').length + (vote === 'against' ? 1 : 0)
       newD.result = forCount > againstCount ? 'approved' : 'rejected'
+      updatedDecision = newD
       return newD
     }))
+    if (updatedDecision) {
+      const supabase = createClient()
+      await supabase.from('board_decisions').update({ data: updatedDecision }).eq('id', id).eq('user_id', userId)
+    }
   }
 
-  const addProposal = () => {
+  const addProposal = async () => {
     if (!nTitle.trim()) return
-    setDecisions(prev => [{
-      id: Date.now(), title: nTitle, description: nDesc, date: new Date().toLocaleDateString('he-IL').replace(/\./g,'/'),
-      proposedBy: nProposed, directorVotes: DIRECTORS.map(d => ({ director: d, vote: null })),
-      chairmanVote: null, result: 'pending', category: nCategory,
-    }, ...prev])
+    const newDecision: BoardDecision = {
+      id: 'bd-' + Date.now(),
+      title: nTitle,
+      description: nDesc,
+      date: new Date().toLocaleDateString('he-IL').replace(/\./g,'/'),
+      proposedBy: nProposed,
+      directorVotes: DIRECTORS.map(d => ({ director: d, vote: null })),
+      chairmanVote: null,
+      result: 'pending',
+      category: nCategory,
+    }
+    setDecisions(prev => [newDecision, ...prev])
+    const supabase = createClient()
+    await supabase.from('board_decisions').insert({ id: newDecision.id, user_id: userId, data: newDecision })
     setNTitle(''); setNDesc(''); setNCategory(CATEGORIES[0]); setShowForm(false)
   }
 
@@ -375,7 +356,7 @@ export default function BoardPage() {
         {history.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">היסטוריית החלטות ({history.length})</h3>
-            {history.sort((a,b)=>b.id-a.id).map(d => <DecisionCard key={d.id} decision={d} onVote={handleVote} />)}
+            {history.sort((a,b)=> a.id < b.id ? 1 : -1).map(d => <DecisionCard key={d.id} decision={d} onVote={handleVote} />)}
           </div>
         )}
       </div>

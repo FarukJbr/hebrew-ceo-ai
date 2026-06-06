@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/Header'
 import { Send, Bot, User, Sparkles, RefreshCw } from 'lucide-react'
 
 interface Message {
-  id: number
+  id: string
   role: 'user' | 'assistant'
   content: string
   time: string
@@ -14,7 +15,7 @@ interface Message {
 
 const initialMessages: Message[] = [
   {
-    id: 1,
+    id: 'welcome',
     role: 'assistant',
     content: 'שלום, יו״ר הדירקטוריון. אני אריאל, המנכ״ל AI של גבר יזמות. איך אפשר לעזור לך היום? ניתן לשאול על ביצועים פיננסיים, אסטרטגיה עסקית, עסקאות, צוות, או כל נושא ניהולי אחר.',
     time: '10:00',
@@ -38,22 +39,60 @@ const agentResponses: Record<string, string> = {
   'תכין תוכנית לרבעון הבא': 'תוכנית אסטרטגית Q3 2026:\n\n📈 יעדי הכנסות: ₪3.5M (עלייה 20%)\n\n1. נדל״ן — השלמת 3 עסקאות פתוחות + חיפוש 2 עסקאות חדשות\n2. ייעוץ — הרחבת מאגר לקוחות ב-20%, פיתוח חבילת פרימיום\n3. השקעות — הקצאת ₪2M להשקעות מגוונות\n4. תפעול — גיוס 5 עובדים, הפחתת עלויות ב-5%\n5. שיווק — קמפיין אירופה, כנס תעשייתי\n\nרוצה שאפרק לתוכניות עבודה מפורטות לכל מחלקה?',
 }
 
+const initialWelcomeMessage: Message = {
+  id: 'welcome',
+  role: 'assistant',
+  content: 'שלום, יו״ר הדירקטוריון. אני אריאל, המנכ״ל AI של גבר יזמות. איך אפשר לעזור לך היום? ניתן לשאול על ביצועים פיננסיים, אסטרטגיה עסקית, עסקאות, צוות, או כל נושא ניהולי אחר.',
+  time: '10:00',
+  agent: 'אריאל — מנכ״ל AI',
+}
+
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>(initialMessages)
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [userId, setUserId] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data }) => {
+      const uid = data.user?.id
+      if (!uid) { setIsLoading(false); return }
+      setUserId(uid)
+      const { data: rows } = await supabase
+        .from('chat_messages')
+        .select('data')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: true })
+      const msgs = rows?.map((r: any) => r.data) || []
+      setMessages(msgs.length ? msgs : [initialWelcomeMessage])
+      setIsLoading(false)
+    })
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  if (isLoading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
+        <p className="text-sm text-text-muted">טוען נתונים...</p>
+      </div>
+    </div>
+  )
+
   const sendMessage = async (text?: string) => {
     const content = text || input.trim()
     if (!content) return
 
+    const supabase = createClient()
+
     const userMsg: Message = {
-      id: messages.length + 1,
+      id: 'msg-' + Date.now(),
       role: 'user',
       content,
       time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
@@ -62,13 +101,15 @@ export default function ChatPage() {
     setInput('')
     setLoading(true)
 
+    await supabase.from('chat_messages').insert({ id: userMsg.id, user_id: userId, data: userMsg })
+
     await new Promise(r => setTimeout(r, 1200))
 
     const responseText = agentResponses[content] ||
       `קיבלתי את שאלתך: "${content}". אני מעבד את הנתונים ומכין תשובה מפורטת. בגרסה הבאה של המערכת, אתחבר ל-API של Claude AI ואספק תשובות חיות. כרגע, אני עונה מתוך מאגר הידע המובנה שלי.`
 
     const assistantMsg: Message = {
-      id: messages.length + 2,
+      id: 'msg-' + (Date.now() + 1),
       role: 'assistant',
       content: responseText,
       time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
@@ -76,6 +117,8 @@ export default function ChatPage() {
     }
     setMessages(prev => [...prev, assistantMsg])
     setLoading(false)
+
+    await supabase.from('chat_messages').insert({ id: assistantMsg.id, user_id: userId, data: assistantMsg })
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

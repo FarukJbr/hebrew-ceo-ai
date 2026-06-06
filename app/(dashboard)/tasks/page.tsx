@@ -1,14 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
 import { Plus, Flag, User, Calendar, CheckCircle2, Circle, Clock, X, ChevronDown, ChevronUp, Filter } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 type Priority = 'high' | 'medium' | 'low'
 type Status = 'todo' | 'inprogress' | 'done'
 
 interface Task {
-  id: number
+  id: string
   title: string
   description: string
   priority: Priority
@@ -19,17 +20,6 @@ interface Task {
 }
 
 const DEPARTMENTS = ['הנהלה','כספים','שיווק','משפטי','משאבי אנוש','נדל״ן','טכנולוגיה','מכירות']
-
-const initialTasks: Task[] = [
-  { id: 1, title: 'ניתוח שוק — Q3 2026',       description: 'ניתוח מגמות שוק לרבעון השלישי כולל מתחרים, הזדמנויות ואיומים', priority: 'high',   assignee: 'הנהלה',          dueDate: '10/06', status: 'inprogress', category: 'אסטרטגיה' },
-  { id: 2, title: 'דוח כספי חצי שנתי',         description: 'הכנת דוח כספי מלא לחצי השנה הראשונה כולל מאזן ודוח רווח והפסד', priority: 'high',   assignee: 'כספים',           dueDate: '15/06', status: 'todo',       category: 'פיננסים' },
-  { id: 3, title: 'בדיקת חוזי ספקים',          description: 'סקירה משפטית מקיפה של כל חוזי הספקים הפעילים', priority: 'medium', assignee: 'משפטי',           dueDate: '12/06', status: 'inprogress', category: 'משפטי' },
-  { id: 4, title: 'קמפיין שיווקי Q3',           description: 'תכנון וביצוע קמפיין שיווקי לשוק האירופי עם תקציב ₪80K', priority: 'medium', assignee: 'שיווק',           dueDate: '20/06', status: 'todo',       category: 'שיווק' },
-  { id: 5, title: 'גיוס מנהל פיתוח',           description: 'פרסום משרה, סינון מועמדים וראיונות למשרת מנהל פיתוח עסקי', priority: 'medium', assignee: 'משאבי אנוש',     dueDate: '30/06', status: 'todo',       category: 'HR' },
-  { id: 6, title: 'אופטימיזציה תהליכים',       description: 'מיפוי ושיפור תהליכים פנימיים לצמצום עלויות תפעול', priority: 'low',    assignee: 'הנהלה',          dueDate: '25/06', status: 'done',       category: 'תפעול' },
-  { id: 7, title: 'דוח השקעות Q2',             description: 'סיכום תיק ההשקעות לרבעון השני כולל ביצועים ותחזית', priority: 'high',   assignee: 'כספים',           dueDate: '05/06', status: 'done',       category: 'פיננסים' },
-  { id: 8, title: 'הדרכת צוות חדש',            description: 'הכנת חומרי הדרכה וביצוע הדרכה ל-5 עובדים חדשים', priority: 'low',    assignee: 'משאבי אנוש',     dueDate: '18/06', status: 'inprogress', category: 'HR' },
-]
 
 const priorityConfig: Record<Priority, { label: string; color: string; bg: string }> = {
   high:   { label: 'גבוהה',  color: 'text-accent-red',   bg: 'bg-accent-red/10' },
@@ -67,7 +57,9 @@ function TaskCard({ task, onExpand }: { task: Task; onExpand: (t: Task) => void 
 }
 
 export default function TasksPage() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
+  const [userId, setUserId] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [tasks, setTasks] = useState<Task[]>([])
   const [showForm, setShowForm] = useState(false)
   const [expandedTask, setExpandedTask] = useState<Task | null>(null)
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all')
@@ -82,16 +74,41 @@ export default function TasksPage() {
   const [newDue, setNewDue] = useState('')
   const [newCategory, setNewCategory] = useState('')
 
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data }) => {
+      const uid = data.user?.id
+      if (!uid) { setIsLoading(false); return }
+      setUserId(uid)
+      const { data: rows } = await supabase
+        .from('tasks')
+        .select('data')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false })
+      setTasks(rows?.map((r: any) => r.data) || [])
+      setIsLoading(false)
+    })
+  }, [])
+
+  if (isLoading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
+        <p className="text-sm text-text-muted">טוען נתונים...</p>
+      </div>
+    </div>
+  )
+
   const filtered = tasks.filter(t => {
     if (filterPriority !== 'all' && t.priority !== filterPriority) return false
     if (filterDept !== 'all' && t.assignee !== filterDept) return false
     return true
   })
 
-  const addTask = () => {
+  const addTask = async () => {
     if (!newTitle.trim()) return
-    setTasks(prev => [{
-      id: Date.now(),
+    const newTask: Task = {
+      id: 'task-' + Date.now(),
       title: newTitle.trim(),
       description: newDesc.trim(),
       priority: newPriority,
@@ -99,10 +116,13 @@ export default function TasksPage() {
       dueDate: newDue || '—',
       status: 'todo',
       category: newCategory || 'כללי',
-    }, ...prev])
+    }
+    setTasks(prev => [newTask, ...prev])
     setNewTitle(''); setNewDesc(''); setNewPriority('medium')
     setNewAssignee(DEPARTMENTS[0]); setNewDue(''); setNewCategory('')
     setShowForm(false)
+    const supabase = createClient()
+    await supabase.from('tasks').insert({ id: newTask.id, user_id: userId, data: newTask })
   }
 
   const counts = {
@@ -260,7 +280,13 @@ export default function TasksPage() {
             </div>
             <div className="flex gap-2 pt-1">
               {(['todo','inprogress','done'] as Status[]).map(s => (
-                <button key={s} onClick={() => { setTasks(prev => prev.map(t => t.id === expandedTask.id ? {...t, status: s} : t)); setExpandedTask({...expandedTask, status: s}) }}
+                <button key={s} onClick={async () => {
+                  const updatedTask = { ...expandedTask, status: s }
+                  setTasks(prev => prev.map(t => t.id === expandedTask.id ? updatedTask : t))
+                  setExpandedTask(updatedTask)
+                  const supabase = createClient()
+                  await supabase.from('tasks').update({ data: updatedTask }).eq('id', expandedTask.id).eq('user_id', userId)
+                }}
                   className={`flex-1 text-xs py-2 rounded-xl transition-all border ${expandedTask.status === s ? 'bg-accent-cyan/20 border-accent-cyan/30 text-accent-cyan' : 'bg-white/5 border-border-muted text-text-muted hover:text-text-secondary'}`}>
                   {s === 'todo' ? 'לביצוע' : s === 'inprogress' ? 'בתהליך' : 'הושלם'}
                 </button>

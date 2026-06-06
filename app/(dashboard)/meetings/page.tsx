@@ -1,13 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
 import { Calendar, Clock, Users, Plus, Video, MapPin, ChevronDown, ChevronUp, X, Filter, UserPlus, UserMinus } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 const ALL_PARTICIPANTS = ['יו״ר הדירקטוריון','הנהלה — אריאל','כספים — נועה','שיווק — יובל','משפטי — מיכל','משאבי אנוש — דניאל','נדל״ן — שירה','טכנולוגיה — רון','מכירות — תמר']
 
 interface Meeting {
-  id: number
+  id: string
   title: string
   date: string
   time: string
@@ -20,16 +21,8 @@ interface Meeting {
   notes?: string
 }
 
-const initialMeetings: Meeting[] = [
-  { id: 1, title: 'ישיבת דירקטוריון — רבעון Q2', date: '10/06/2026', time: '10:00', duration: '2 שעות', type: 'physical', location: 'חדר ישיבות ראשי, קומה 12', participants: ['יו״ר הדירקטוריון','הנהלה — אריאל','כספים — נועה','משפטי — מיכל'], agenda: ['סקירת ביצועים Q2','אישור תקציב Q3','עסקאות נדל״ן פתוחות','שונות'], status: 'upcoming' },
-  { id: 2, title: 'סקירת אסטרטגיה שנתית', date: '15/06/2026', time: '14:00', duration: '3 שעות', type: 'video', location: 'Zoom — קישור נשלח במייל', participants: ['יו״ר הדירקטוריון','הנהלה — אריאל','כספים — נועה','שיווק — יובל','נדל״ן — שירה'], agenda: ['סקירת יעדים שנתיים','תוכנית Q3-Q4','השקעות אסטרטגיות','הרחבת פעילות'], status: 'upcoming' },
-  { id: 3, title: 'פגישת לקוח — השקעה בנדל״ן', date: '08/06/2026', time: '11:00', duration: '1.5 שעות', type: 'physical', location: 'משרדי הלקוח, תל אביב', participants: ['יו״ר הדירקטוריון','נדל״ן — שירה','משפטי — מיכל'], agenda: ['הצגת הצעה','משא ומתן על תנאים','חתימת LOI'], status: 'upcoming' },
-  { id: 4, title: 'ישיבת צוות שבועית', date: '03/06/2026', time: '09:00', duration: '1 שעה', type: 'video', location: 'Google Meet', participants: ['יו״ר הדירקטוריון','הנהלה — אריאל','כספים — נועה','שיווק — יובל','משאבי אנוש — דניאל'], agenda: ['עדכוני שוטף','חסימות ומכשולים','עדיפויות השבוע'], status: 'past', notes: 'אושר תקציב קמפיין שיווקי — ₪80,000. נועה תכין תחזית מעודכנת עד יום ה׳.' },
-  { id: 5, title: 'ועדת השקעות — מאי', date: '28/05/2026', time: '15:00', duration: '2 שעות', type: 'physical', location: 'חדר ישיבות B', participants: ['יו״ר הדירקטוריון','כספים — נועה','נדל״ן — שירה'], agenda: ['ניתוח תיק השקעות','הזדמנויות חדשות','הקצאת הון Q3'], status: 'past', notes: 'הוחלט להשקיע ₪2M בנכסים מסחריים. שירה תכין ניתוח מעמיק עד סוף החודש.' },
-]
-
 function MeetingCard({ meeting, onUpdate }: { meeting: Meeting; onUpdate: (m: Meeting) => void }) {
-  const [expanded, setExpanded] = useState(meeting.status === 'upcoming' && meeting.id === 1)
+  const [expanded, setExpanded] = useState(false)
   const [editingParticipants, setEditingParticipants] = useState(false)
 
   const addParticipant = (p: string) => {
@@ -142,7 +135,9 @@ function MeetingCard({ meeting, onUpdate }: { meeting: Meeting; onUpdate: (m: Me
 }
 
 export default function MeetingsPage() {
-  const [meetings, setMeetings] = useState<Meeting[]>(initialMeetings)
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [userId, setUserId] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filterStatus, setFilterStatus] = useState<'all' | 'upcoming' | 'past'>('all')
   const [filterType, setFilterType] = useState<'all' | 'video' | 'physical'>('all')
@@ -159,15 +154,56 @@ export default function MeetingsPage() {
   const [nAgenda, setNAgenda] = useState<string[]>([])
   const [nParticipants, setNParticipants] = useState<string[]>(['יו״ר הדירקטוריון'])
 
-  const addMeeting = () => {
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data }) => {
+      const uid = data.user?.id
+      if (!uid) { setIsLoading(false); return }
+      setUserId(uid)
+      const { data: rows } = await supabase
+        .from('meetings')
+        .select('data')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false })
+      setMeetings(rows?.map((r: any) => r.data) || [])
+      setIsLoading(false)
+    })
+  }, [])
+
+  if (isLoading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
+        <p className="text-sm text-text-muted">טוען נתונים...</p>
+      </div>
+    </div>
+  )
+
+  const addMeeting = async () => {
     if (!nTitle.trim() || !nDate.trim()) return
-    setMeetings(prev => [{
-      id: Date.now(), title: nTitle, date: nDate, time: nTime || '09:00',
-      duration: nDuration || '1 שעה', type: nType, location: nLocation || (nType === 'video' ? 'Zoom' : 'משרד'),
-      participants: nParticipants, agenda: nAgenda, status: 'upcoming'
-    }, ...prev])
+    const newMeeting: Meeting = {
+      id: 'meet-' + Date.now(),
+      title: nTitle,
+      date: nDate,
+      time: nTime || '09:00',
+      duration: nDuration || '1 שעה',
+      type: nType,
+      location: nLocation || (nType === 'video' ? 'Zoom' : 'משרד'),
+      participants: nParticipants,
+      agenda: nAgenda,
+      status: 'upcoming',
+    }
+    setMeetings(prev => [newMeeting, ...prev])
+    const supabase = createClient()
+    await supabase.from('meetings').insert({ id: newMeeting.id, user_id: userId, data: newMeeting })
     setNTitle(''); setNDate(''); setNTime(''); setNDuration(''); setNLocation('')
     setNAgenda([]); setNParticipants(['יו״ר הדירקטוריון']); setShowForm(false)
+  }
+
+  const handleUpdate = async (updated: Meeting) => {
+    setMeetings(prev => prev.map(x => x.id === updated.id ? updated : x))
+    const supabase = createClient()
+    await supabase.from('meetings').update({ data: updated }).eq('id', updated.id).eq('user_id', userId)
   }
 
   const filtered = meetings.filter(m => {
@@ -310,7 +346,7 @@ export default function MeetingsPage() {
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-accent-cyan uppercase tracking-wider">ישיבות קרובות</h3>
             {filtered.filter(m=>m.status==='upcoming').map(m => (
-              <MeetingCard key={m.id} meeting={m} onUpdate={updated => setMeetings(prev => prev.map(x => x.id === updated.id ? updated : x))} />
+              <MeetingCard key={m.id} meeting={m} onUpdate={handleUpdate} />
             ))}
           </div>
         )}
@@ -319,7 +355,7 @@ export default function MeetingsPage() {
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">ישיבות שעברו</h3>
             {filtered.filter(m=>m.status==='past').map(m => (
-              <MeetingCard key={m.id} meeting={m} onUpdate={updated => setMeetings(prev => prev.map(x => x.id === updated.id ? updated : x))} />
+              <MeetingCard key={m.id} meeting={m} onUpdate={handleUpdate} />
             ))}
           </div>
         )}

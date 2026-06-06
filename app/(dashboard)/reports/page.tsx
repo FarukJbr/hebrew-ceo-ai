@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
 import { BarChart2, TrendingUp, Download, FileText, Calendar, Plus, X, Filter, CheckCircle2, Clock } from 'lucide-react'
 import { DashboardCharts } from '@/components/DashboardCharts'
+import { createClient } from '@/lib/supabase/client'
 
 interface Report {
-  id: number
+  id: string
   title: string
   date: string
   type: string
@@ -15,15 +16,6 @@ interface Report {
   format: 'pdf' | 'excel'
   dateRange?: string
 }
-
-const initialReports: Report[] = [
-  { id: 1, title: 'דוח רבעוני Q2 2026', date: '01/06/2026', type: 'רבעוני', status: 'ready', size: '2.4 MB', format: 'pdf' },
-  { id: 2, title: 'דוח חצי שנתי H1 2026', date: '01/06/2026', type: 'חצי שנתי', status: 'generating', size: '—', format: 'pdf' },
-  { id: 3, title: 'דוח רבעוני Q1 2026', date: '01/03/2026', type: 'רבעוני', status: 'ready', size: '2.1 MB', format: 'pdf' },
-  { id: 4, title: 'דוח שנתי 2025', date: '15/01/2026', type: 'שנתי', status: 'ready', size: '5.8 MB', format: 'excel' },
-  { id: 5, title: 'דוח מחלקת כספים — מאי', date: '31/05/2026', type: 'מחלקתי', status: 'ready', size: '1.2 MB', format: 'excel' },
-  { id: 6, title: 'דוח ישיבות ומשימות Q2', date: '28/05/2026', type: 'תפעולי', status: 'ready', size: '0.9 MB', format: 'pdf' },
-]
 
 const kpiData = [
   { label: 'צמיחת הכנסות YTD', value: '+24.3%', trend: 'up', vs: 'יעד שנתי: 20% ✓' },
@@ -37,12 +29,14 @@ const kpiData = [
 const REPORT_TYPES = ['רבעוני','חצי שנתי','שנתי','מחלקתי — כספים','מחלקתי — שיווק','מחלקתי — נדל״ן','מחלקתי — הנהלה','תפעולי — ישיבות','תפעולי — משימות','תפעולי — מחלקות']
 
 export default function ReportsPage() {
-  const [reports, setReports] = useState<Report[]>(initialReports)
+  const [reports, setReports] = useState<Report[]>([])
   const [showForm, setShowForm] = useState(false)
   const [filterType, setFilterType] = useState('all')
   const [filterFormat, setFilterFormat] = useState<'all'|'pdf'|'excel'>('all')
   const [showFilters, setShowFilters] = useState(false)
-  const [downloadedIds, setDownloadedIds] = useState<Set<number>>(new Set())
+  const [downloadedIds, setDownloadedIds] = useState<Set<string>>(new Set())
+  const [userId, setUserId] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
 
   const [nTitle, setNTitle] = useState('')
   const [nType, setNType] = useState(REPORT_TYPES[0])
@@ -50,28 +44,59 @@ export default function ReportsPage() {
   const [nFrom, setNFrom] = useState('')
   const [nTo, setNTo] = useState('')
 
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data }) => {
+      const uid = data.user?.id
+      if (!uid) { setIsLoading(false); return }
+      setUserId(uid)
+      const { data: rows } = await supabase
+        .from('reports')
+        .select('data')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false })
+      setReports(rows?.map((r: any) => r.data) || [])
+      setIsLoading(false)
+    })
+  }, [])
+
+  if (isLoading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
+        <p className="text-sm text-text-muted">טוען נתונים...</p>
+      </div>
+    </div>
+  )
+
   const filtered = reports.filter(r => {
     if (filterType !== 'all' && !r.type.includes(filterType)) return false
     if (filterFormat !== 'all' && r.format !== filterFormat) return false
     return true
   })
 
-  const generateReport = () => {
+  const generateReport = async () => {
     if (!nTitle.trim()) return
     const newReport: Report = {
-      id: Date.now(), title: nTitle, date: new Date().toLocaleDateString('he-IL').replace(/\./g,'/'),
+      id: 'rep-'+Date.now(), title: nTitle, date: new Date().toLocaleDateString('he-IL').replace(/\./g,'/'),
       type: nType, status: 'generating', size: '—', format: nFormat,
       dateRange: nFrom && nTo ? `${nFrom} — ${nTo}` : undefined
     }
     setReports(prev => [newReport, ...prev])
     setNTitle(''); setNFrom(''); setNTo(''); setShowForm(false)
+
+    const supabase = createClient()
+    await supabase.from('reports').insert({ id: newReport.id, user_id: userId, data: newReport })
+
     // Simulate report generation
-    setTimeout(() => {
-      setReports(prev => prev.map(r => r.id === newReport.id ? { ...r, status: 'ready', size: `${(Math.random()*3+0.5).toFixed(1)} MB` } : r))
+    setTimeout(async () => {
+      const updatedReport: Report = { ...newReport, status: 'ready', size: `${(Math.random()*3+0.5).toFixed(1)} MB` }
+      setReports(prev => prev.map(r => r.id === newReport.id ? updatedReport : r))
+      await supabase.from('reports').update({ data: updatedReport }).eq('id', newReport.id).eq('user_id', userId)
     }, 3000)
   }
 
-  const handleDownload = (id: number) => {
+  const handleDownload = (id: string) => {
     setDownloadedIds(prev => new Set([...prev, id]))
   }
 
