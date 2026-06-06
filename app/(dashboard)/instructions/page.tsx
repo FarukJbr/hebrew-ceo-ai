@@ -2,25 +2,25 @@
 
 import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
-import { Sparkles, Plus, Trash2, CheckCircle2, Clock, X, ChevronDown, ChevronUp, Filter, Bot, FileText } from 'lucide-react'
+import { Sparkles, Plus, Trash2, CheckCircle2, Clock, X, ChevronDown, ChevronUp, Filter, Bot, FileText, Inbox, AlertCircle, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 type Priority = 'urgent' | 'high' | 'normal'
+type InstructionStatus = 'received' | 'in_progress' | 'completed' | 'failed'
 
 const DEPARTMENTS = ['הנהלה','כספים','שיווק','משפטי','משאבי אנוש','טכנולוגיה','תפעול','אסטרטגיה','קריאייטיב','מכירות']
 
 const DEPT_ROLE: Record<string, string> = {
-  'הנהלה':        'CEO AI — אריאל',
-  'כספים':        'CFO AI — נועה',
-  'שיווק':        'CMO AI — יובל',
-  'משפטי':        'Legal AI — מיכל',
-  'משאבי אנוש':   'HR AI — דניאל',
-  'טכנולוגיה':    'IT AI — רון',
-  'תפעול':        'COO AI — עמית',
-  'אסטרטגיה':     'Strategy AI — דן',
-  'קריאייטיב':    'Creative AI — אלה',
-  'מכירות':       'מכירות AI — תמר',
-  'כולם':         'כל המחלקות',
+  'הנהלה': 'CEO AI — אריאל', 'כספים': 'CFO AI — נועה', 'שיווק': 'CMO AI — יובל',
+  'משפטי': 'Legal AI — מיכל', 'משאבי אנוש': 'HR AI — דניאל', 'טכנולוגיה': 'IT AI — רון',
+  'תפעול': 'COO AI — עמית', 'אסטרטגיה': 'Strategy AI — דן', 'קריאייטיב': 'Creative AI — אלה',
+  'מכירות': 'Sales AI — תמר', 'כולם': 'כל המחלקות',
+}
+
+interface TimelineEntry {
+  timestamp: string
+  status: InstructionStatus
+  note: string
 }
 
 interface Instruction {
@@ -29,17 +29,31 @@ interface Instruction {
   agent: string
   priority: Priority
   createdAt: string
-  status: 'active' | 'done'
+  status: InstructionStatus | 'active' | 'done'
+  agentName?: string
   agentResponse?: string
   workProduct?: string
-  agentName?: string
   source?: string
+  timeline?: TimelineEntry[]
 }
 
-const priorityConfig: Record<Priority, { label: string; color: string; bg: string; border: string }> = {
-  urgent: { label: 'דחוף',   color: 'text-accent-red',   bg: 'bg-accent-red/10',   border: 'border-accent-red/20' },
-  high:   { label: 'גבוה',   color: 'text-accent-amber', bg: 'bg-accent-amber/10', border: 'border-accent-amber/20' },
-  normal: { label: 'רגיל',   color: 'text-text-muted',   bg: 'bg-white/5',         border: 'border-border-muted' },
+const normalizeStatus = (s: string): InstructionStatus => {
+  if (s === 'active') return 'received'
+  if (s === 'done') return 'completed'
+  return s as InstructionStatus
+}
+
+const statusConfig: Record<InstructionStatus, { label: string; color: string; bg: string; border: string; Icon: any }> = {
+  received:    { label: 'התקבל',     color: 'text-accent-cyan',   bg: 'bg-accent-cyan/10',   border: 'border-accent-cyan/20',   Icon: Inbox },
+  in_progress: { label: 'בטיפול',    color: 'text-accent-amber',  bg: 'bg-accent-amber/10',  border: 'border-accent-amber/20',  Icon: Loader2 },
+  completed:   { label: 'הושלם',     color: 'text-accent-green',  bg: 'bg-accent-green/10',  border: 'border-accent-green/20',  Icon: CheckCircle2 },
+  failed:      { label: 'לא הושלם', color: 'text-accent-red',    bg: 'bg-accent-red/10',    border: 'border-accent-red/20',    Icon: AlertCircle },
+}
+
+const priorityConfig: Record<Priority, { label: string; color: string; bg: string }> = {
+  urgent: { label: 'דחוף', color: 'text-accent-red',   bg: 'bg-accent-red/10' },
+  high:   { label: 'גבוה', color: 'text-accent-amber', bg: 'bg-accent-amber/10' },
+  normal: { label: 'רגיל', color: 'text-text-muted',   bg: 'bg-white/5' },
 }
 
 export default function InstructionsPage() {
@@ -51,10 +65,8 @@ export default function InstructionsPage() {
   const [text, setText] = useState('')
   const [agent, setAgent] = useState('הנהלה')
   const [priority, setPriority] = useState<Priority>('normal')
-
-  // Filters
   const [showFilters, setShowFilters] = useState(false)
-  const [fStatus, setFStatus] = useState<'all' | 'active' | 'done'>('all')
+  const [fStatus, setFStatus] = useState<InstructionStatus | 'all'>('all')
   const [fPriority, setFPriority] = useState<Priority | 'all'>('all')
   const [fDept, setFDept] = useState<string>('all')
 
@@ -76,22 +88,29 @@ export default function InstructionsPage() {
 
   if (isLoading) return (
     <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-8 h-8 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
-        <p className="text-sm text-text-muted">טוען נתונים...</p>
-      </div>
+      <div className="w-8 h-8 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin"/>
     </div>
   )
 
-  const filtered = instructions.filter(i => {
+  const normalized = instructions.map(i => ({ ...i, status: normalizeStatus(i.status as string) }))
+  const filtered = normalized.filter(i => {
     if (fStatus !== 'all' && i.status !== fStatus) return false
     if (fPriority !== 'all' && i.priority !== fPriority) return false
     if (fDept !== 'all' && i.agent !== fDept) return false
     return true
   })
 
-  const active = filtered.filter(i => i.status === 'active')
-  const done = filtered.filter(i => i.status === 'done')
+  const counts = {
+    received:    normalized.filter(i => i.status === 'received').length,
+    in_progress: normalized.filter(i => i.status === 'in_progress').length,
+    completed:   normalized.filter(i => i.status === 'completed').length,
+    failed:      normalized.filter(i => i.status === 'failed').length,
+  }
+
+  const upsertInstruction = async (inst: Instruction) => {
+    const supabase = createClient()
+    await supabase.from('instructions').upsert({ id: inst.id, user_id: userId, data: inst })
+  }
 
   const addInstruction = async () => {
     if (!text.trim()) return
@@ -102,28 +121,26 @@ export default function InstructionsPage() {
       agent,
       priority,
       createdAt: now,
-      status: 'active',
+      status: 'received',
+      timeline: [{ timestamp: now, status: 'received', note: 'ההוראה התקבלה במערכת' }],
     }
     setInstructions(prev => [newInstruction, ...prev])
     setText(''); setAgent('הנהלה'); setPriority('normal'); setShowForm(false)
-    const supabase = createClient()
-    await supabase.from('instructions').insert({ id: newInstruction.id, user_id: userId, data: newInstruction })
+    await upsertInstruction(newInstruction)
   }
 
-  const markDone = async (id: string) => {
-    setInstructions(prev => prev.map(i => i.id === id ? { ...i, status: 'done' } : i))
-    const updated = instructions.find(i => i.id === id)
-    if (!updated) return
-    const supabase = createClient()
-    await supabase.from('instructions').update({ data: { ...updated, status: 'done' } }).eq('id', id).eq('user_id', userId)
-  }
-
-  const markActive = async (id: string) => {
-    setInstructions(prev => prev.map(i => i.id === id ? { ...i, status: 'active' } : i))
-    const updated = instructions.find(i => i.id === id)
-    if (!updated) return
-    const supabase = createClient()
-    await supabase.from('instructions').update({ data: { ...updated, status: 'active' } }).eq('id', id).eq('user_id', userId)
+  const updateStatus = async (id: string, newStatus: InstructionStatus, note: string) => {
+    const now = new Date().toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
+    setInstructions(prev => prev.map(i => {
+      if (i.id !== id) return i
+      const entry: TimelineEntry = { timestamp: now, status: newStatus, note }
+      return { ...i, status: newStatus, timeline: [...(i.timeline || []), entry] }
+    }))
+    const inst = instructions.find(i => i.id === id)
+    if (!inst) return
+    const entry: TimelineEntry = { timestamp: now, status: newStatus, note }
+    const updated = { ...inst, status: newStatus, timeline: [...(inst.timeline || []), entry] }
+    await upsertInstruction(updated)
   }
 
   const deleteI = async (id: string) => {
@@ -132,52 +149,45 @@ export default function InstructionsPage() {
     await supabase.from('instructions').delete().eq('id', id).eq('user_id', userId)
   }
 
-  const toggleExpand = (id: string) => setExpandedId(prev => prev === id ? null : id)
-
   return (
     <div className="min-h-screen">
-      <Header title="הוראות AI" subtitle="תן הוראות ישירות לסוכני הבינה המלאכותית במחלקות" />
+      <Header title="הוראות AI" subtitle="מעקב הוראות ומשימות לסוכני הבינה המלאכותית" />
 
       <div className="p-6 space-y-5 animate-fade-in">
-        {/* Top bar */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-4 text-xs text-text-secondary">
-            <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-accent-cyan" />{active.length} פעילות</span>
-            <span className="text-text-muted">|</span>
-            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-accent-green" />{done.length} הושלמו</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border transition-all ${showFilters ? 'bg-accent-cyan/10 border-accent-cyan/20 text-accent-cyan' : 'bg-white/5 border-border-muted text-text-muted hover:text-text-secondary'}`}>
-              <Filter className="w-3.5 h-3.5" /> פילטרים
+        {/* Status summary */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {(Object.entries(statusConfig) as [InstructionStatus, typeof statusConfig[InstructionStatus]][]).map(([key, cfg]) => (
+            <button key={key} onClick={() => setFStatus(fStatus === key ? 'all' : key)}
+              className={`glass-card rounded-2xl p-4 text-right transition-all border ${fStatus === key ? cfg.border : 'border-border-muted'}`}>
+              <div className="flex items-center justify-between mb-1">
+                <cfg.Icon className={`w-4 h-4 ${cfg.color} ${key === 'in_progress' ? 'animate-spin' : ''}`} />
+                <span className={`text-2xl font-bold ${cfg.color}`}>{counts[key]}</span>
+              </div>
+              <p className="text-xs text-text-muted">{cfg.label}</p>
             </button>
-            <button onClick={() => setShowForm(!showForm)}
-              className="flex items-center gap-1.5 bg-accent-cyan/10 hover:bg-accent-cyan/20 border border-accent-cyan/20 text-accent-cyan text-xs px-3 py-1.5 rounded-xl transition-all">
-              <Plus className="w-3.5 h-3.5" /> הוראה חדשה
-            </button>
-          </div>
+          ))}
         </div>
 
-        {/* Filters */}
+        {/* Toolbar */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <button onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border transition-all ${showFilters ? 'bg-accent-cyan/10 border-accent-cyan/20 text-accent-cyan' : 'bg-white/5 border-border-muted text-text-muted'}`}>
+            <Filter className="w-3.5 h-3.5" /> פילטרים
+          </button>
+          <button onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-1.5 bg-accent-cyan/10 hover:bg-accent-cyan/20 border border-accent-cyan/20 text-accent-cyan text-xs px-3 py-1.5 rounded-xl transition-all">
+            <Plus className="w-3.5 h-3.5" /> הוראה חדשה
+          </button>
+        </div>
+
         {showFilters && (
           <div className="glass-card rounded-2xl p-4 flex flex-wrap gap-4 border border-accent-cyan/10">
-            <div>
-              <label className="block text-xs text-text-muted mb-1.5">סטטוס</label>
-              <div className="flex gap-1">
-                {(['all','active','done'] as const).map(s => (
-                  <button key={s} onClick={() => setFStatus(s)}
-                    className={`text-xs px-3 py-1.5 rounded-lg transition-all ${fStatus===s ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-white/5 text-text-muted hover:text-text-secondary'}`}>
-                    {s==='all'?'הכל':s==='active'?'פעילות':'הושלמו'}
-                  </button>
-                ))}
-              </div>
-            </div>
             <div>
               <label className="block text-xs text-text-muted mb-1.5">דחיפות</label>
               <div className="flex gap-1">
                 {(['all','urgent','high','normal'] as const).map(p => (
                   <button key={p} onClick={() => setFPriority(p)}
-                    className={`text-xs px-3 py-1.5 rounded-lg transition-all ${fPriority===p ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-white/5 text-text-muted hover:text-text-secondary'}`}>
+                    className={`text-xs px-3 py-1.5 rounded-lg transition-all ${fPriority===p ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-white/5 text-text-muted'}`}>
                     {p==='all'?'הכל':p==='urgent'?'דחוף':p==='high'?'גבוה':'רגיל'}
                   </button>
                 ))}
@@ -192,7 +202,7 @@ export default function InstructionsPage() {
               </select>
             </div>
             <button onClick={() => { setFStatus('all'); setFPriority('all'); setFDept('all') }}
-              className="self-end text-xs text-text-muted hover:text-accent-red transition-colors flex items-center gap-1">
+              className="self-end text-xs text-text-muted hover:text-accent-red flex items-center gap-1">
               <X className="w-3 h-3" /> איפוס
             </button>
           </div>
@@ -202,21 +212,21 @@ export default function InstructionsPage() {
         {showForm && (
           <div className="glass-card rounded-2xl p-5 border border-accent-cyan/20 space-y-4">
             <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-accent-cyan" /> הוראה חדשה לסוכן AI
+              <Sparkles className="w-4 h-4 text-accent-cyan" /> הוראה חדשה
             </h3>
             <textarea value={text} onChange={e => setText(e.target.value)}
-              placeholder="תאר את המשימה בצורה ברורה ומפורטת..." rows={3}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-cyan/50 transition-all resize-none" />
+              placeholder="תאר את המשימה בצורה ברורה..." rows={3}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-cyan/50 resize-none" />
             <div className="flex flex-wrap gap-3">
               <div className="flex-1 min-w-[160px]">
                 <label className="block text-xs text-text-muted mb-1.5">מחלקה</label>
                 <select value={agent} onChange={e => setAgent(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none">
-                  <option value="כולם" className="bg-bg-card">כולם — כל המחלקות</option>
+                  <option value="כולם" className="bg-bg-card">כולם</option>
                   {DEPARTMENTS.map(d => <option key={d} value={d} className="bg-bg-card">{d} — {DEPT_ROLE[d]}</option>)}
                 </select>
               </div>
-              <div className="flex-1 min-w-[140px]">
+              <div className="flex-1 min-w-[130px]">
                 <label className="block text-xs text-text-muted mb-1.5">דחיפות</label>
                 <select value={priority} onChange={e => setPriority(e.target.value as Priority)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none">
@@ -227,11 +237,11 @@ export default function InstructionsPage() {
               </div>
               <div className="flex items-end gap-2">
                 <button onClick={addInstruction}
-                  className="bg-accent-cyan text-bg-base font-semibold text-xs px-4 py-2 rounded-xl hover:bg-accent-cyan/90 transition-all">
-                  שלח הוראה
+                  className="bg-accent-cyan text-bg-base font-semibold text-xs px-4 py-2 rounded-xl hover:bg-accent-cyan/90">
+                  שלח
                 </button>
                 <button onClick={() => setShowForm(false)}
-                  className="bg-white/5 text-text-secondary text-xs px-3 py-2 rounded-xl hover:bg-white/8 transition-all">
+                  className="bg-white/5 text-text-secondary text-xs px-3 py-2 rounded-xl">
                   ביטול
                 </button>
               </div>
@@ -239,114 +249,115 @@ export default function InstructionsPage() {
           </div>
         )}
 
-        {/* Active */}
-        {active.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-accent-cyan uppercase tracking-wider">הוראות פעילות ({active.length})</h3>
-            {active.map(inst => {
-              const p = priorityConfig[inst.priority]
-              const isExpanded = expandedId === inst.id
-              return (
-                <div key={inst.id} className={`glass-card rounded-2xl border ${p.border} transition-all`}>
-                  <div className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent-cyan/30 to-accent-purple/30 flex items-center justify-center shrink-0 text-xs font-bold text-accent-cyan">
-                        {inst.agent[0]}
+        {/* Instructions list */}
+        <div className="space-y-3">
+          {filtered.length === 0 && (
+            <div className="text-center py-12 text-text-muted text-sm">אין הוראות להצגה</div>
+          )}
+          {filtered.map(inst => {
+            const st = statusConfig[inst.status as InstructionStatus] || statusConfig.received
+            const pr = priorityConfig[inst.priority] || priorityConfig.normal
+            const isExpanded = expandedId === inst.id
+            const StIcon = st.Icon
+
+            return (
+              <div key={inst.id} className={`glass-card rounded-2xl border ${st.border} transition-all`}>
+                <div className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-8 h-8 rounded-full ${st.bg} flex items-center justify-center shrink-0`}>
+                      <StIcon className={`w-4 h-4 ${st.color} ${inst.status === 'in_progress' ? 'animate-spin' : ''}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-xs font-bold text-text-primary">{inst.agent}</span>
+                        <span className="text-xs text-text-muted">{DEPT_ROLE[inst.agent]}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-lg ${pr.bg} ${pr.color}`}>{pr.label}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-lg font-medium ${st.bg} ${st.color}`}>{st.label}</span>
+                        <span className="text-xs text-text-muted mr-auto flex items-center gap-1">
+                          <Clock className="w-3 h-3" />{inst.createdAt}
+                        </span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className="text-xs font-bold text-accent-cyan">{inst.agent}</span>
-                          <span className="text-xs text-text-muted">{DEPT_ROLE[inst.agent]}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-lg ${p.bg} ${p.color}`}>{p.label}</span>
-                          <span className="text-xs text-text-muted mr-auto flex items-center gap-1">
-                            <Clock className="w-3 h-3" />{inst.createdAt}
-                          </span>
-                        </div>
-                        <p className="text-sm text-text-primary leading-relaxed">
-                          {inst.text}
-                        </p>
-                        {inst.workProduct && (
-                          <>
-                            <button onClick={() => toggleExpand(inst.id)}
-                              className="flex items-center gap-1 text-xs text-accent-cyan mt-2 hover:underline">
-                              <FileText className="w-3 h-3" />
-                              {isExpanded ? 'הסתר תוצר עבודה' : 'הצג תוצר עבודה'}
-                              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                            </button>
-                            {isExpanded && (
-                              <div className="mt-3 bg-white/3 border border-accent-cyan/15 rounded-xl p-4">
-                                <div className="flex items-center gap-1.5 mb-2">
-                                  <Bot className="w-3.5 h-3.5 text-accent-cyan" />
-                                  <span className="text-xs font-semibold text-accent-cyan">{inst.agentName || inst.agent} — תוצר עבודה</span>
-                                </div>
-                                <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">{inst.workProduct}</p>
+                      <p className="text-sm text-text-primary leading-relaxed">{inst.text}</p>
+
+                      {/* Timeline + Work product toggle */}
+                      {((inst.timeline && inst.timeline.length > 0) || inst.workProduct) && (
+                        <button onClick={() => setExpandedId(isExpanded ? null : inst.id)}
+                          className="flex items-center gap-1 text-xs text-text-muted hover:text-accent-cyan mt-2 transition-colors">
+                          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          {isExpanded ? 'הסתר פרטים' : 'הצג מעקב ותוצאות'}
+                        </button>
+                      )}
+
+                      {isExpanded && (
+                        <div className="mt-3 space-y-3">
+                          {/* Timeline */}
+                          {inst.timeline && inst.timeline.length > 0 && (
+                            <div className="border border-border-muted rounded-xl p-3">
+                              <p className="text-xs font-semibold text-text-secondary mb-2 flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5" /> ציר זמן
+                              </p>
+                              <div className="space-y-2">
+                                {inst.timeline.map((entry, i) => {
+                                  const esc = statusConfig[entry.status] || statusConfig.received
+                                  const EIcon = esc.Icon
+                                  return (
+                                    <div key={i} className="flex items-start gap-2 text-xs">
+                                      <EIcon className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${esc.color}`} />
+                                      <div className="flex-1">
+                                        <span className={`font-semibold ${esc.color}`}>{esc.label}</span>
+                                        <span className="text-text-muted mx-1.5">—</span>
+                                        <span className="text-text-secondary">{entry.note}</span>
+                                      </div>
+                                      <span className="text-text-muted shrink-0">{entry.timestamp}</span>
+                                    </div>
+                                  )
+                                })}
                               </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <button onClick={() => markDone(inst.id)}
-                          title="סמן כטופל"
-                          className="w-7 h-7 rounded-lg bg-accent-green/10 text-accent-green flex items-center justify-center hover:bg-accent-green/20 transition-all">
+                            </div>
+                          )}
+
+                          {/* Work product */}
+                          {inst.workProduct && (
+                            <div className="bg-white/3 border border-accent-cyan/15 rounded-xl p-4">
+                              <p className="text-xs font-semibold text-accent-cyan mb-2 flex items-center gap-1.5">
+                                <FileText className="w-3.5 h-3.5" />
+                                {inst.agentName || inst.agent} — תוצר עבודה
+                              </p>
+                              <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">{inst.workProduct}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-col gap-1 shrink-0">
+                      {inst.status !== 'completed' && (
+                        <button onClick={() => updateStatus(inst.id, 'completed', 'סומן כהושלם על ידי היו״ר')}
+                          title="סמן כהושלם"
+                          className="w-7 h-7 rounded-lg bg-accent-green/10 text-accent-green flex items-center justify-center hover:bg-accent-green/20">
                           <CheckCircle2 className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => deleteI(inst.id)}
-                          title="מחק"
-                          className="w-7 h-7 rounded-lg bg-accent-red/10 text-accent-red flex items-center justify-center hover:bg-accent-red/20 transition-all">
-                          <Trash2 className="w-3.5 h-3.5" />
+                      )}
+                      {inst.status !== 'failed' && inst.status !== 'received' && (
+                        <button onClick={() => updateStatus(inst.id, 'failed', 'סומן כלא הושלם על ידי היו״ר')}
+                          title="סמן כלא הושלם"
+                          className="w-7 h-7 rounded-lg bg-accent-red/10 text-accent-red flex items-center justify-center hover:bg-accent-red/20">
+                          <AlertCircle className="w-3.5 h-3.5" />
                         </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Done */}
-        {done.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">טופלו ({done.length})</h3>
-            {done.map(inst => (
-              <div key={inst.id} className="glass-card rounded-2xl p-4 opacity-60 hover:opacity-80 transition-all group">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-accent-green mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                      <span className="text-xs font-bold text-text-secondary">{inst.agent}</span>
-                      <span className="text-xs text-text-muted">{DEPT_ROLE[inst.agent]}</span>
-                      <span className="text-xs text-text-muted mr-auto">{inst.createdAt}</span>
-                    </div>
-                    <p className={`text-sm text-text-secondary line-through leading-relaxed ${expandedId === inst.id ? '' : 'line-clamp-2'}`}>
-                      {inst.text}
-                    </p>
-                    {inst.text.length > 100 && (
-                      <button onClick={() => toggleExpand(inst.id)} className="flex items-center gap-1 text-xs text-text-muted mt-1 hover:text-text-secondary">
-                        {expandedId === inst.id ? <><ChevronUp className="w-3 h-3" />פחות</> : <><ChevronDown className="w-3 h-3" />קרא עוד</>}
+                      )}
+                      <button onClick={() => deleteI(inst.id)}
+                        title="מחק"
+                        className="w-7 h-7 rounded-lg bg-white/5 text-text-muted flex items-center justify-center hover:bg-accent-red/10 hover:text-accent-red">
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                    )}
-                  </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                    <button onClick={() => markActive(inst.id)} title="הפעל מחדש"
-                      className="w-7 h-7 rounded-lg bg-accent-cyan/10 text-accent-cyan flex items-center justify-center hover:bg-accent-cyan/20 transition-all">
-                      <Sparkles className="w-3.5 h-3.5" />
-                    </button>
-                    <button onClick={() => deleteI(inst.id)}
-                      className="w-7 h-7 rounded-lg bg-white/5 text-text-muted flex items-center justify-center hover:bg-accent-red/10 hover:text-accent-red transition-all">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-
-        {filtered.length === 0 && (
-          <div className="text-center py-12 text-text-muted text-sm">אין הוראות התואמות את הפילטר</div>
-        )}
+            )
+          })}
+        </div>
       </div>
     </div>
   )

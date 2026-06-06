@@ -70,41 +70,51 @@ export default function AgentsPage() {
     if (!instructionText.trim() || !instructionTarget || isSending) return
     setIsSending(true)
 
-    const now = new Date().toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
+    const ts = () => new Date().toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
+    const supabase = createClient()
+
     const newInstruction: any = {
       id: crypto.randomUUID(),
       text: instructionText.trim(),
       agent: instructionTarget.id,
       priority: 'normal',
-      createdAt: now,
-      status: 'active',
+      createdAt: ts(),
+      status: 'received',
       source: 'department',
+      timeline: [{ timestamp: ts(), status: 'received', note: `ההוראה התקבלה במחלקת ${instructionTarget.id}` }],
     }
+    await supabase.from('instructions').upsert({ id: newInstruction.id, user_id: userId, data: newInstruction })
+
+    newInstruction.status = 'in_progress'
+    newInstruction.timeline.push({ timestamp: ts(), status: 'in_progress', note: `${instructionTarget.agent} מתחיל לטפל בהוראה` })
+    await supabase.from('instructions').upsert({ id: newInstruction.id, user_id: userId, data: newInstruction })
 
     try {
-      const [aiRes] = await Promise.all([
-        fetch('/api/dept-chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ department: instructionTarget.id, instruction: instructionText.trim() }),
-        }),
-      ])
+      const aiRes = await fetch('/api/dept-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ department: instructionTarget.id, instruction: instructionText.trim() }),
+      })
       const aiData = await aiRes.json()
-      newInstruction.agentResponse = aiData.acknowledgment || aiData.response || ''
-      newInstruction.workProduct = aiData.workProduct || ''
+      newInstruction.status = 'completed'
       newInstruction.agentName = aiData.agent || instructionTarget.agent
-    } catch { /* AI response optional */ }
-
-    const supabase = createClient()
-    await supabase.from('instructions').insert({ id: newInstruction.id, user_id: userId, data: newInstruction })
-
-    setActiveInstructions(prev => ({
-      ...prev,
-      [instructionTarget.id]: { text: newInstruction.text, response: newInstruction.workProduct || newInstruction.agentResponse, agentName: newInstruction.agentName },
-    }))
-    setInstructionText('')
-    setInstructionTarget(null)
-    setIsSending(false)
+      newInstruction.agentResponse = aiData.acknowledgment || ''
+      newInstruction.workProduct = aiData.workProduct || ''
+      newInstruction.timeline.push({ timestamp: ts(), status: 'completed', note: `${aiData.agent || instructionTarget.agent} סיים לטפל ויצר תוצר` })
+      await supabase.from('instructions').upsert({ id: newInstruction.id, user_id: userId, data: newInstruction })
+      setActiveInstructions(prev => ({
+        ...prev,
+        [instructionTarget.id]: { text: newInstruction.text, response: newInstruction.workProduct || newInstruction.agentResponse, agentName: newInstruction.agentName },
+      }))
+    } catch {
+      newInstruction.status = 'failed'
+      newInstruction.timeline.push({ timestamp: ts(), status: 'failed', note: 'שגיאה בעת טיפול בהוראה' })
+      await supabase.from('instructions').upsert({ id: newInstruction.id, user_id: userId, data: newInstruction })
+    } finally {
+      setInstructionText('')
+      setInstructionTarget(null)
+      setIsSending(false)
+    }
   }
 
   const active = departments.filter(d => d.status === 'active').length
