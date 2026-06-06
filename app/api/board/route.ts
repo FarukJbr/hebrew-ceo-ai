@@ -8,15 +8,12 @@ function buildPrompt(directorName: string, expertise: string, title: string, des
   return `אתה ${directorName} בדירקטוריון של חברת "${COMPANY}".
 תחום מומחיות: ${expertise}
 
-הצעה לדיון: ${title}
+הצעה לדיון בדירקטוריון: ${title}
 פירוט: ${description}
 
-ענה בעברית בלבד. ספק:
-1. עמדה: בעד / נגד / נמנע
-2. שלושה נימוקים קצרים
-3. המלצה או אזהרה אחת
-
-היה תכליתי וענייני כחבר דירקטוריון מקצועי.`
+דבר בגוף ראשון כאילו אתה נואם בישיבת דירקטוריון. ענה בעברית בלבד.
+התחל עם עמדתך (בעד / נגד / נמנע), ואז תן פרשנות קצרה ומקצועית של 3-5 משפטים.
+אל תשתמש בכותרות או רשימות — רק דיבור ישיר וענייני כחבר דירקטוריון.`
 }
 
 async function askClaude(title: string, description: string): Promise<{ vote: string; opinion: string }> {

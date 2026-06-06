@@ -10,6 +10,7 @@ type VoteResult = 'approved' | 'rejected' | 'pending'
 interface DirectorVote {
   director: string
   vote: 'for' | 'against' | 'abstain' | null
+  opinion?: string
 }
 
 interface BoardDecision {
@@ -82,18 +83,27 @@ function DecisionCard({ decision, onVote }: DecisionCardProps) {
               <p className="text-sm text-text-secondary leading-relaxed">{decision.description}</p>
 
               {/* Vote breakdown */}
-              {totalVoted > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-text-secondary mb-2">פירוט הצבעות:</p>
-                  <div className="space-y-1.5">
-                    {[...decision.directorVotes, { director: 'יו״ר הדירקטוריון', vote: decision.chairmanVote }].map(dv => (
-                      <div key={dv.director} className="flex items-center justify-between text-xs">
-                        <span className="text-text-muted">{dv.director}</span>
-                        <span className={`font-medium ${voteColor(dv.vote)}`}>{voteLabel(dv.vote)}</span>
+              {decision.directorVotes.some(dv => dv.vote !== null) && (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">דיון הדירקטוריון</p>
+                  {decision.directorVotes.map(dv => dv.vote !== null && (
+                    <div key={dv.director} className={`rounded-xl p-3 border ${dv.vote === 'for' ? 'bg-accent-green/5 border-accent-green/15' : dv.vote === 'against' ? 'bg-accent-red/5 border-accent-red/15' : 'bg-white/3 border-border-muted'}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-text-primary">{dv.director} Director</span>
+                        <span className={`text-xs font-bold ${voteColor(dv.vote)}`}>{voteLabel(dv.vote)}</span>
                       </div>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-4 mt-3 pt-2 border-t border-border-muted">
+                      {dv.opinion && <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">{dv.opinion}</p>}
+                    </div>
+                  ))}
+                  {decision.chairmanVote && (
+                    <div className="rounded-xl p-3 border bg-accent-cyan/5 border-accent-cyan/15">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-accent-cyan">יו״ר הדירקטוריון</span>
+                        <span className={`text-xs font-bold ${voteColor(decision.chairmanVote)}`}>{voteLabel(decision.chairmanVote)}</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-4 pt-1 border-t border-border-muted">
                     <span className="flex items-center gap-1 text-xs text-accent-green font-semibold"><ThumbsUp className="w-3 h-3" />{forCount} בעד</span>
                     <span className="flex items-center gap-1 text-xs text-accent-red font-semibold"><ThumbsDown className="w-3 h-3" />{againstCount} נגד</span>
                     {abstainCount > 0 && <span className="text-xs text-text-muted">{abstainCount} נמנע</span>}
@@ -243,6 +253,7 @@ export default function BoardPage() {
       const aiVotes: DirectorVote[] = (aiData.directors || []).map((d: any) => ({
         director: d.director,
         vote: d.vote as 'for' | 'against' | 'abstain',
+        opinion: d.opinion,
       }))
       const updatedDecision = { ...placeholderDecision, directorVotes: aiVotes }
       setDecisions(prev => prev.map(d => d.id === placeholderDecision.id ? updatedDecision : d))
