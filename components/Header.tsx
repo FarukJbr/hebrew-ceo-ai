@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Bell, Search, X, CheckCircle2, AlertCircle, Info } from 'lucide-react'
+import { Bell, Search, X, CheckCircle2, AlertCircle, Info, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface HeaderProps {
   title: string
@@ -19,6 +19,7 @@ const NOTIFICATIONS = [
 export function Header({ title, subtitle }: HeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false)
   const [notifications, setNotifications] = useState(NOTIFICATIONS)
+  const [expandedId, setExpandedId] = useState<number | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   const unreadCount = notifications.filter(n => !n.read).length
@@ -33,7 +34,8 @@ export function Header({ title, subtitle }: HeaderProps) {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const markAllRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+  const markAllRead = () => { setNotifications(prev => prev.map(n => ({ ...n, read: true }))); setExpandedId(null) }
+  const markRead = (id: number) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
 
   const now = new Date()
   const timeStr = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
@@ -93,18 +95,41 @@ export function Header({ title, subtitle }: HeaderProps) {
                 </div>
               </div>
 
-              <div className="max-h-72 overflow-y-auto">
+              <div className="max-h-80 overflow-y-auto">
                 {notifications.length === 0 ? (
                   <div className="py-8 text-center text-sm text-text-muted">אין התראות חדשות</div>
                 ) : (
                   notifications.map(n => (
-                    <div key={n.id} className={`flex items-start gap-3 px-4 py-3 border-b border-border-muted last:border-0 transition-colors hover:bg-white/3 ${!n.read ? 'bg-white/2' : ''}`}>
-                      <div className="mt-0.5 shrink-0">{iconMap[n.type as keyof typeof iconMap]}</div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs leading-relaxed ${n.read ? 'text-text-secondary' : 'text-text-primary font-medium'}`}>{n.text}</p>
-                        <p className="text-xs text-text-muted mt-0.5">{n.time}</p>
+                    <div key={n.id}
+                      onClick={() => setExpandedId(expandedId === n.id ? null : n.id)}
+                      className={`cursor-pointer flex flex-col px-4 py-3 border-b border-border-muted last:border-0 transition-colors ${expandedId === n.id ? 'bg-white/5' : !n.read ? 'bg-white/2 hover:bg-white/4' : 'hover:bg-white/3'}`}>
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 shrink-0">{iconMap[n.type as keyof typeof iconMap]}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs leading-relaxed ${n.read ? 'text-text-secondary' : 'text-text-primary font-medium'}`}>{n.text}</p>
+                          <p className="text-xs text-text-muted mt-0.5">{n.time}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                          {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-accent-cyan" />}
+                          {expandedId === n.id
+                            ? <ChevronUp className="w-3 h-3 text-text-muted" />
+                            : <ChevronDown className="w-3 h-3 text-text-muted" />}
+                        </div>
                       </div>
-                      {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-accent-cyan mt-1.5 shrink-0" />}
+                      {expandedId === n.id && (
+                        <div className="mt-2 pt-2 border-t border-border-muted mr-6 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                          {!n.read ? (
+                            <button onClick={() => markRead(n.id)}
+                              className="text-xs bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20 rounded-lg px-2.5 py-1 hover:bg-accent-cyan/20 transition-all">
+                              סמן כנקרא
+                            </button>
+                          ) : (
+                            <span className="text-xs text-accent-green flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" /> נקרא
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))
                 )}

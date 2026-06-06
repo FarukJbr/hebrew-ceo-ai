@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Header } from '@/components/Header'
-import { Wallet, TrendingUp, TrendingDown, Plus, Trash2, Upload, Building2, BarChart2, FileText, AlertTriangle, CheckCircle2, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { Wallet, TrendingUp, TrendingDown, Plus, Trash2, Upload, Building2, BarChart2, FileText, AlertTriangle, CheckCircle2, ArrowUpRight, ArrowDownRight, Download } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { createClient } from '@/lib/supabase/client'
 
@@ -204,6 +204,18 @@ export default function FinancePage() {
 
   const cfData = buildCFMap(cfAcct,cfBP,cfPeriod)
   const chartData = cfData.map(row=>({label:row.label,הכנסות:Math.round(row.bizInc+row.privInc),הוצאות:Math.round(row.bizExp+row.privExp)}))
+
+  const downloadCashFlow = async () => {
+    if (cfData.length===0) return
+    const XLSX = await import('xlsx')
+    const wb = XLSX.utils.book_new()
+    const headers = ['תקופה','הכנסות עסקיות (₪)','הוצאות עסקיות (₪)','הכנסות פרטיות (₪)','הוצאות פרטיות (₪)','מאזן תקופתי (₪)']
+    const rows = cfData.map(p=>[p.label, p.bizInc, p.bizExp, p.privInc, p.privExp, Math.round((p.bizInc+p.privInc)-(p.bizExp+p.privExp))])
+    const ws = XLSX.utils.aoa_to_sheet([headers,...rows])
+    ws['!cols'] = headers.map(()=>({wch:24}))
+    XLSX.utils.book_append_sheet(wb, ws, 'תזרים מזומנים')
+    XLSX.writeFile(wb, `תזרים-מזומנים-${cfPeriod==='month'?'חודשי':'שבועי'}.xlsx`)
+  }
   const tBI=cfData.reduce((s,r)=>s+r.bizInc,0), tBE=cfData.reduce((s,r)=>s+r.bizExp,0)
   const tPI=cfData.reduce((s,r)=>s+r.privInc,0), tPE=cfData.reduce((s,r)=>s+r.privExp,0)
 
@@ -598,6 +610,10 @@ export default function FinancePage() {
                   </button>
                 ))}
               </div>
+              <button onClick={downloadCashFlow} disabled={cfData.length===0}
+                className="mr-auto flex items-center gap-1.5 text-xs bg-accent-cyan/10 hover:bg-accent-cyan/20 border border-accent-cyan/20 text-accent-cyan px-3 py-1.5 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                <Download className="w-3.5 h-3.5"/> הורד Excel
+              </button>
             </div>
             {cfData.length===0?(
               <div className="glass-card rounded-2xl p-10 text-center">

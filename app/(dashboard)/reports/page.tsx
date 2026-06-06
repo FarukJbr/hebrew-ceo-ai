@@ -96,8 +96,25 @@ export default function ReportsPage() {
     }, 3000)
   }
 
-  const handleDownload = (id: string) => {
-    setDownloadedIds(prev => new Set([...prev, id]))
+  const handleDownload = async (report: Report) => {
+    const XLSX = await import('xlsx')
+    const wb = XLSX.utils.book_new()
+    const wsData = [
+      ['שם הדוח', report.title],
+      ['סוג', report.type],
+      ['תאריך', report.date],
+      ['פורמט', report.format.toUpperCase()],
+      ['סטטוס', report.status === 'ready' ? 'מוכן' : 'בהכנה'],
+      ['גודל', report.size !== '—' ? report.size : 'בהכנה'],
+      ...(report.dateRange ? [['טווח תאריכים', report.dateRange]] : []),
+      ['', ''],
+      ['הופק על ידי', 'מערכת ניהול גבר יזמות'],
+    ]
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
+    ws['!cols'] = [{ wch: 22 }, { wch: 42 }]
+    XLSX.utils.book_append_sheet(wb, ws, 'מידע דוח')
+    XLSX.writeFile(wb, `${report.title}.xlsx`)
+    setDownloadedIds(prev => new Set([...prev, report.id]))
   }
 
   const allTypes = ['all', ...Array.from(new Set(reports.map(r => r.type.split(' — ')[0])))]
@@ -244,7 +261,7 @@ export default function ReportsPage() {
                       <CheckCircle2 className="w-3.5 h-3.5" /> הורד
                     </span>
                   ) : (
-                    <button onClick={() => handleDownload(report.id)}
+                    <button onClick={() => handleDownload(report)}
                       className="flex items-center gap-1.5 text-xs text-text-muted hover:text-accent-cyan transition-colors bg-white/5 hover:bg-white/8 px-3 py-1.5 rounded-lg">
                       <Download className="w-3.5 h-3.5" /> הורד
                     </button>
