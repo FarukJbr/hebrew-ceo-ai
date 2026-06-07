@@ -48,13 +48,13 @@ export default function AgentsPage() {
         .from('instructions')
         .select('data')
         .eq('user_id', uid)
-        .eq('data->>status', 'active')
+        .eq('data->>source', 'department')
         .order('created_at', { ascending: false })
       const map: Record<string, { text: string; response?: string; agentName?: string }> = {}
       for (const row of rows || []) {
         const d = row.data
         if (d?.agent && !map[d.agent]) {
-          map[d.agent] = { text: d.text, response: d.agentResponse, agentName: d.agentName }
+          map[d.agent] = { text: d.text, response: d.workProduct || d.agentResponse, agentName: d.agentName }
         }
       }
       setActiveInstructions(map)

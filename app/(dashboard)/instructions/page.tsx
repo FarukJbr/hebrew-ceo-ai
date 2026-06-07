@@ -110,26 +110,57 @@ export default function InstructionsPage() {
 
   const upsertInstruction = async (inst: Instruction) => {
     const supabase = createClient()
-    const { error } = await supabase.from('instructions').upsert({ id: inst.id, user_id: userId, data: inst })
+    const { data: { user } } = await supabase.auth.getUser()
+    const uid = user?.id || userId
+    if (!uid) return
+    const { error } = await supabase.from('instructions').upsert({ id: inst.id, user_id: uid, data: inst })
     if (error) setDbError(`שגיאת שמירה (${error.code}): ${error.message}`)
     else setDbError(null)
   }
 
   const addInstruction = async () => {
     if (!text.trim()) return
-    const now = new Date().toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
+    const ts = () => new Date().toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
+    const instText = text.trim()
+    const instAgent = agent
     const newInstruction: Instruction = {
       id: crypto.randomUUID(),
-      text: text.trim(),
-      agent,
+      text: instText,
+      agent: instAgent,
       priority,
-      createdAt: now,
+      createdAt: ts(),
       status: 'received',
-      timeline: [{ timestamp: now, status: 'received', note: 'ההוראה התקבלה במערכת' }],
+      timeline: [{ timestamp: ts(), status: 'received', note: 'ההוראה התקבלה במערכת' }],
     }
     setInstructions(prev => [newInstruction, ...prev])
     setText(''); setAgent('הנהלה'); setPriority('normal'); setShowForm(false)
     await upsertInstruction(newInstruction)
+
+    if (instAgent === 'כולם') return
+
+    // Auto-process with AI
+    const inProgress: Instruction = { ...newInstruction, status: 'in_progress',
+      timeline: [...newInstruction.timeline, { timestamp: ts(), status: 'in_progress', note: `מועבר לטיפול ${instAgent}` }] }
+    setInstructions(prev => prev.map(i => i.id === newInstruction.id ? inProgress : i))
+    await upsertInstruction(inProgress)
+
+    try {
+      const aiRes = await fetch('/api/dept-chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ department: instAgent, instruction: instText }),
+      })
+      const aiData = await aiRes.json()
+      const completed: Instruction = { ...inProgress, status: 'completed',
+        agentName: aiData.agent, agentResponse: aiData.acknowledgment, workProduct: aiData.workProduct,
+        timeline: [...inProgress.timeline, { timestamp: ts(), status: 'completed', note: `${aiData.agent || instAgent} סיים לטפל ויצר תוצר` }] }
+      setInstructions(prev => prev.map(i => i.id === newInstruction.id ? completed : i))
+      await upsertInstruction(completed)
+    } catch {
+      const failed: Instruction = { ...inProgress, status: 'failed',
+        timeline: [...inProgress.timeline, { timestamp: ts(), status: 'failed', note: 'שגיאה בעת טיפול' }] }
+      setInstructions(prev => prev.map(i => i.id === newInstruction.id ? failed : i))
+      await upsertInstruction(failed)
+    }
   }
 
   const updateStatus = async (id: string, newStatus: InstructionStatus, note: string) => {

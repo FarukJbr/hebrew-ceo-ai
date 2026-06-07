@@ -111,19 +111,14 @@ function DecisionCard({ decision, onVote }: DecisionCardProps) {
                 </div>
               )}
 
-              {/* Voting buttons */}
-              {decision.result === 'pending' && (
+              {/* Voting buttons — chairman veto (always available, required only on tie) */}
+              {!decision.chairmanVote && (
                 <div className="space-y-2">
-                  {decision.chairmanVote ? (
-                    <div className="flex items-center gap-2 bg-accent-green/5 border border-accent-green/20 rounded-xl px-4 py-3">
-                      <CheckCircle2 className="w-4 h-4 text-accent-green" />
-                      <span className="text-sm text-accent-green font-medium">
-                        הצבעת: {decision.chairmanVote === 'for' ? 'בעד ✓' : decision.chairmanVote === 'against' ? 'נגד ✗' : 'נמנע'}
-                      </span>
-                    </div>
-                  ) : (
+                  {false ? null : (
                     <div>
-                      <p className="text-xs text-text-muted mb-2">הצבע כיו״ר הדירקטוריון:</p>
+                      <p className="text-xs text-text-muted mb-2">
+                        {decision.result === 'pending' ? 'תיקו — הצבעת יו״ר מכריעה:' : 'וטו יו״ר (אופציונאלי):'}
+                      </p>
                       <div className="flex gap-2">
                         <button onClick={() => onVote(decision.id, 'for')}
                           className="flex items-center gap-1.5 bg-accent-green/10 hover:bg-accent-green/20 border border-accent-green/20 text-accent-green text-xs px-4 py-2 rounded-xl transition-all active:scale-95">
@@ -139,7 +134,16 @@ function DecisionCard({ decision, onVote }: DecisionCardProps) {
                         </button>
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
+              </div>
+              )}
+              {decision.chairmanVote && (
+                <div className="flex items-center gap-2 bg-accent-cyan/5 border border-accent-cyan/20 rounded-xl px-4 py-3">
+                  <CheckCircle2 className="w-4 h-4 text-accent-cyan" />
+                  <span className="text-sm text-accent-cyan font-medium">
+                    וטו יו״ר: {decision.chairmanVote === 'for' ? 'בעד ✓' : decision.chairmanVote === 'against' ? 'נגד ✗' : 'נמנע'}
+                  </span>
                 </div>
               )}
 
@@ -203,26 +207,23 @@ export default function BoardPage() {
   )
 
   const handleVote = async (id: string, vote: 'for' | 'against' | 'abstain') => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const uid = user?.id
+    if (!uid) return
+
     let updatedDecision: BoardDecision | null = null
     setDecisions(prev => prev.map(d => {
       if (d.id !== id) return d
       const newD = { ...d, chairmanVote: vote }
-      // Auto-assign AI director votes for demo
-      const aiVotes: DirectorVote[] = d.directorVotes.map(dv => {
-        if (dv.vote !== null) return dv
-        const rand = Math.random()
-        return { director: dv.director, vote: rand > 0.35 ? 'for' : rand > 0.15 ? 'against' : 'abstain' }
-      })
-      newD.directorVotes = aiVotes
-      const forCount = aiVotes.filter(v=>v.vote==='for').length + (vote === 'for' ? 1 : 0)
-      const againstCount = aiVotes.filter(v=>v.vote==='against').length + (vote === 'against' ? 1 : 0)
-      newD.result = forCount > againstCount ? 'approved' : 'rejected'
+      const forCount = newD.directorVotes.filter(v=>v.vote==='for').length + (vote === 'for' ? 1 : 0)
+      const againstCount = newD.directorVotes.filter(v=>v.vote==='against').length + (vote === 'against' ? 1 : 0)
+      newD.result = forCount > againstCount ? 'approved' : againstCount > forCount ? 'rejected' : 'pending'
       updatedDecision = newD
       return newD
     }))
     if (updatedDecision) {
-      const supabase = createClient()
-      const { error } = await supabase.from('board_decisions').upsert({ id: (updatedDecision as BoardDecision).id, user_id: userId, data: updatedDecision })
+      const { error } = await supabase.from('board_decisions').upsert({ id: (updatedDecision as BoardDecision).id, user_id: uid, data: updatedDecision })
       if (error) setDbError(`שגיאת שמירה (${error.code}): ${error.message}`)
       else setDbError(null)
     }
@@ -232,8 +233,14 @@ export default function BoardPage() {
     if (!nTitle.trim() || isSubmitting) return
     setIsSubmitting(true)
 
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const uid = user?.id
+    if (!uid) { setIsSubmitting(false); return }
+
+    const newId = crypto.randomUUID()
     const placeholderDecision: BoardDecision = {
-      id: crypto.randomUUID(),
+      id: newId,
       title: nTitle,
       description: nDesc,
       date: new Date().toLocaleDateString('he-IL').replace(/\./g,'/'),
@@ -245,6 +252,11 @@ export default function BoardPage() {
     }
     setDecisions(prev => [placeholderDecision, ...prev])
     setNTitle(''); setNDesc(''); setNCategory(CATEGORIES[0]); setShowForm(false)
+
+    // Save immediately before AI call so refresh won't lose the proposal
+    const { error: initErr } = await supabase.from('board_decisions')
+      .upsert({ id: newId, user_id: uid, data: placeholderDecision })
+    if (initErr) { setDbError(`שגיאת שמירה: ${initErr.message}`); setIsSubmitting(false); return }
 
     try {
       const res = await fetch('/api/board', {
@@ -258,16 +270,17 @@ export default function BoardPage() {
         vote: d.vote as 'for' | 'against' | 'abstain',
         opinion: d.opinion,
       }))
-      const updatedDecision = { ...placeholderDecision, directorVotes: aiVotes }
-      setDecisions(prev => prev.map(d => d.id === placeholderDecision.id ? updatedDecision : d))
-      const supabase = createClient()
-      const { error } = await supabase.from('board_decisions').upsert({ id: updatedDecision.id, user_id: userId, data: updatedDecision })
+      // Auto-determine result by majority AI vote — chairman is optional veto
+      const forCount = aiVotes.filter(v => v.vote === 'for').length
+      const againstCount = aiVotes.filter(v => v.vote === 'against').length
+      const autoResult: VoteResult = forCount > againstCount ? 'approved' : againstCount > forCount ? 'rejected' : 'pending'
+      const updatedDecision: BoardDecision = { ...placeholderDecision, directorVotes: aiVotes, result: autoResult }
+      setDecisions(prev => prev.map(d => d.id === newId ? updatedDecision : d))
+      const { error } = await supabase.from('board_decisions').upsert({ id: newId, user_id: uid, data: updatedDecision })
       if (error) setDbError(`שגיאת שמירה (${error.code}): ${error.message}`)
       else setDbError(null)
     } catch {
-      const supabase = createClient()
-      const { error } = await supabase.from('board_decisions').upsert({ id: placeholderDecision.id, user_id: userId, data: placeholderDecision })
-      if (error) setDbError(`שגיאת שמירה (${error.code}): ${error.message}`)
+      // placeholder already saved before AI call
     } finally {
       setIsSubmitting(false)
     }
