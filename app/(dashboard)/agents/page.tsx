@@ -48,7 +48,6 @@ export default function AgentsPage() {
         .from('instructions')
         .select('data')
         .eq('user_id', uid)
-        .eq('data->>source', 'department')
         .order('created_at', { ascending: false })
       const map: Record<string, { text: string; response?: string; agentName?: string }> = {}
       for (const row of rows || []) {
@@ -73,6 +72,9 @@ export default function AgentsPage() {
 
     const ts = () => new Date().toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
     const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const uid = user?.id
+    if (!uid) { setIsSending(false); return }
 
     const newInstruction: any = {
       id: crypto.randomUUID(),
@@ -84,12 +86,12 @@ export default function AgentsPage() {
       source: 'department',
       timeline: [{ timestamp: ts(), status: 'received', note: `ההוראה התקבלה במחלקת ${instructionTarget.id}` }],
     }
-    const { error: e1 } = await supabase.from('instructions').upsert({ id: newInstruction.id, user_id: userId, data: newInstruction })
-    if (e1) setDbError(`שגיאת שמירה (${e1.code}): ${e1.message}`)
+    const { error: e1 } = await supabase.from('instructions').upsert({ id: newInstruction.id, user_id: uid, data: newInstruction })
+    if (e1) { setDbError(`שגיאת שמירה (${e1.code}): ${e1.message}`); setIsSending(false); return }
 
     newInstruction.status = 'in_progress'
     newInstruction.timeline.push({ timestamp: ts(), status: 'in_progress', note: `${instructionTarget.agent} מתחיל לטפל בהוראה` })
-    await supabase.from('instructions').upsert({ id: newInstruction.id, user_id: userId, data: newInstruction })
+    await supabase.from('instructions').upsert({ id: newInstruction.id, user_id: uid, data: newInstruction })
 
     try {
       const aiRes = await fetch('/api/dept-chat', {
@@ -103,7 +105,7 @@ export default function AgentsPage() {
       newInstruction.agentResponse = aiData.acknowledgment || ''
       newInstruction.workProduct = aiData.workProduct || ''
       newInstruction.timeline.push({ timestamp: ts(), status: 'completed', note: `${aiData.agent || instructionTarget.agent} סיים לטפל ויצר תוצר` })
-      await supabase.from('instructions').upsert({ id: newInstruction.id, user_id: userId, data: newInstruction })
+      await supabase.from('instructions').upsert({ id: newInstruction.id, user_id: uid, data: newInstruction })
       setActiveInstructions(prev => ({
         ...prev,
         [instructionTarget.id]: { text: newInstruction.text, response: newInstruction.workProduct || newInstruction.agentResponse, agentName: newInstruction.agentName },
@@ -111,7 +113,7 @@ export default function AgentsPage() {
     } catch {
       newInstruction.status = 'failed'
       newInstruction.timeline.push({ timestamp: ts(), status: 'failed', note: 'שגיאה בעת טיפול בהוראה' })
-      await supabase.from('instructions').upsert({ id: newInstruction.id, user_id: userId, data: newInstruction })
+      await supabase.from('instructions').upsert({ id: newInstruction.id, user_id: uid, data: newInstruction })
     } finally {
       setInstructionText('')
       setInstructionTarget(null)
