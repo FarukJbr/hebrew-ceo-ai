@@ -44,11 +44,13 @@ const voteColor = (v: 'for'|'against'|'abstain'|null) =>
 interface DecisionCardProps {
   decision: BoardDecision
   onVote: (id: string, vote: 'for' | 'against' | 'abstain') => void
+  isProcessing?: boolean
 }
 
-function DecisionCard({ decision, onVote }: DecisionCardProps) {
+function DecisionCard({ decision, onVote, isProcessing }: DecisionCardProps) {
   const [expanded, setExpanded] = useState(decision.result === 'pending')
   const r = resultConfig[decision.result]
+  const aiVoted = decision.directorVotes.some(dv => dv.vote !== null)
   const forCount = (decision.directorVotes.filter(v=>v.vote==='for').length) + (decision.chairmanVote === 'for' ? 1 : 0)
   const againstCount = (decision.directorVotes.filter(v=>v.vote==='against').length) + (decision.chairmanVote === 'against' ? 1 : 0)
   const abstainCount = (decision.directorVotes.filter(v=>v.vote==='abstain').length) + (decision.chairmanVote === 'abstain' ? 1 : 0)
@@ -82,8 +84,13 @@ function DecisionCard({ decision, onVote }: DecisionCardProps) {
             <div className="mt-4 space-y-4 pt-3 border-t border-border-muted">
               <p className="text-sm text-text-secondary leading-relaxed">{decision.description}</p>
 
-              {/* Vote breakdown */}
-              {decision.directorVotes.some(dv => dv.vote !== null) && (
+              {/* AI directors voting / discussion */}
+              {isProcessing && !aiVoted ? (
+                <div className="flex items-center gap-3 bg-accent-cyan/5 border border-accent-cyan/15 rounded-xl px-4 py-3">
+                  <span className="w-4 h-4 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin shrink-0" />
+                  <span className="text-xs text-accent-cyan">הדירקטורים בוחנים את ההצעה ומצביעים... (עד 30 שניות)</span>
+                </div>
+              ) : aiVoted ? (
                 <div className="space-y-3">
                   <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">דיון הדירקטוריון</p>
                   {decision.directorVotes.map(dv => dv.vote !== null && (
@@ -109,10 +116,10 @@ function DecisionCard({ decision, onVote }: DecisionCardProps) {
                     {abstainCount > 0 && <span className="text-xs text-text-muted">{abstainCount} נמנע</span>}
                   </div>
                 </div>
-              )}
+              ) : null}
 
-              {/* Chairman veto — optional when result decided, required on tie */}
-              {!decision.chairmanVote ? (
+              {/* Chairman veto — only after AI directors have voted, optional when result decided, required on tie */}
+              {!isProcessing && aiVoted && !decision.chairmanVote && (
                 <div className="space-y-2">
                   <p className="text-xs text-text-muted mb-2">
                     {decision.result === 'pending' ? 'תיקו — הצבעת יו״ר מכריעה:' : 'וטו יו״ר (אופציונאלי):'}
@@ -132,7 +139,8 @@ function DecisionCard({ decision, onVote }: DecisionCardProps) {
                     </button>
                   </div>
                 </div>
-              ) : (
+              )}
+              {decision.chairmanVote && (
                 <div className="flex items-center gap-2 bg-accent-cyan/5 border border-accent-cyan/20 rounded-xl px-4 py-3">
                   <CheckCircle2 className="w-4 h-4 text-accent-cyan" />
                   <span className="text-sm text-accent-cyan font-medium">
@@ -165,6 +173,7 @@ export default function BoardPage() {
   const [filterResult, setFilterResult] = useState<VoteResult | 'all'>('all')
   const [filterCategory, setFilterCategory] = useState('all')
   const [showFilters, setShowFilters] = useState(false)
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set())
 
   const [nTitle, setNTitle] = useState('')
   const [nDesc, setNDesc] = useState('')
@@ -252,6 +261,7 @@ export default function BoardPage() {
       .upsert({ id: newId, user_id: uid, data: placeholderDecision })
     if (initErr) { setDbError(`שגיאת שמירה: ${initErr.message}`); setIsSubmitting(false); return }
 
+    setProcessingIds(prev => new Set([...prev, newId]))
     try {
       const res = await fetch('/api/board', {
         method: 'POST',
@@ -276,6 +286,7 @@ export default function BoardPage() {
     } catch {
       // placeholder already saved before AI call
     } finally {
+      setProcessingIds(prev => { const s = new Set(prev); s.delete(newId); return s })
       setIsSubmitting(false)
     }
   }
@@ -412,14 +423,14 @@ export default function BoardPage() {
         {pending.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-accent-amber uppercase tracking-wider">ממתין להצבעה ({pending.length})</h3>
-            {pending.map(d => <DecisionCard key={d.id} decision={d} onVote={handleVote} />)}
+            {pending.map(d => <DecisionCard key={d.id} decision={d} onVote={handleVote} isProcessing={processingIds.has(d.id)} />)}
           </div>
         )}
 
         {history.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">היסטוריית החלטות ({history.length})</h3>
-            {history.sort((a,b)=> a.id < b.id ? 1 : -1).map(d => <DecisionCard key={d.id} decision={d} onVote={handleVote} />)}
+            {history.sort((a,b)=> a.id < b.id ? 1 : -1).map(d => <DecisionCard key={d.id} decision={d} onVote={handleVote} isProcessing={processingIds.has(d.id)} />)}
           </div>
         )}
       </div>
