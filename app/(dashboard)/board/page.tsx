@@ -111,34 +111,28 @@ function DecisionCard({ decision, onVote }: DecisionCardProps) {
                 </div>
               )}
 
-              {/* Voting buttons — chairman veto (always available, required only on tie) */}
-              {!decision.chairmanVote && (
+              {/* Chairman veto — optional when result decided, required on tie */}
+              {!decision.chairmanVote ? (
                 <div className="space-y-2">
-                  {false ? null : (
-                    <div>
-                      <p className="text-xs text-text-muted mb-2">
-                        {decision.result === 'pending' ? 'תיקו — הצבעת יו״ר מכריעה:' : 'וטו יו״ר (אופציונאלי):'}
-                      </p>
-                      <div className="flex gap-2">
-                        <button onClick={() => onVote(decision.id, 'for')}
-                          className="flex items-center gap-1.5 bg-accent-green/10 hover:bg-accent-green/20 border border-accent-green/20 text-accent-green text-xs px-4 py-2 rounded-xl transition-all active:scale-95">
-                          <ThumbsUp className="w-3.5 h-3.5" /> אישור
-                        </button>
-                        <button onClick={() => onVote(decision.id, 'against')}
-                          className="flex items-center gap-1.5 bg-accent-red/10 hover:bg-accent-red/20 border border-accent-red/20 text-accent-red text-xs px-4 py-2 rounded-xl transition-all active:scale-95">
-                          <ThumbsDown className="w-3.5 h-3.5" /> דחייה
-                        </button>
-                        <button onClick={() => onVote(decision.id, 'abstain')}
-                          className="flex items-center gap-1.5 bg-white/5 hover:bg-white/8 border border-border-muted text-text-muted text-xs px-4 py-2 rounded-xl transition-all active:scale-95">
-                          <Minus className="w-3.5 h-3.5" /> נמנע
-                        </button>
-                      </div>
-                    </div>
+                  <p className="text-xs text-text-muted mb-2">
+                    {decision.result === 'pending' ? 'תיקו — הצבעת יו״ר מכריעה:' : 'וטו יו״ר (אופציונאלי):'}
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => onVote(decision.id, 'for')}
+                      className="flex items-center gap-1.5 bg-accent-green/10 hover:bg-accent-green/20 border border-accent-green/20 text-accent-green text-xs px-4 py-2 rounded-xl transition-all active:scale-95">
+                      <ThumbsUp className="w-3.5 h-3.5" /> אישור
+                    </button>
+                    <button onClick={() => onVote(decision.id, 'against')}
+                      className="flex items-center gap-1.5 bg-accent-red/10 hover:bg-accent-red/20 border border-accent-red/20 text-accent-red text-xs px-4 py-2 rounded-xl transition-all active:scale-95">
+                      <ThumbsDown className="w-3.5 h-3.5" /> דחייה
+                    </button>
+                    <button onClick={() => onVote(decision.id, 'abstain')}
+                      className="flex items-center gap-1.5 bg-white/5 hover:bg-white/8 border border-border-muted text-text-muted text-xs px-4 py-2 rounded-xl transition-all active:scale-95">
+                      <Minus className="w-3.5 h-3.5" /> נמנע
+                    </button>
                   </div>
-                )}
-              </div>
-              )}
-              {decision.chairmanVote && (
+                </div>
+              ) : (
                 <div className="flex items-center gap-2 bg-accent-cyan/5 border border-accent-cyan/20 rounded-xl px-4 py-3">
                   <CheckCircle2 className="w-4 h-4 text-accent-cyan" />
                   <span className="text-sm text-accent-cyan font-medium">
