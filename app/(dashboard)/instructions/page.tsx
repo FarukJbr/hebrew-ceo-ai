@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
-import { Sparkles, Plus, Trash2, CheckCircle2, Clock, X, ChevronDown, ChevronUp, Filter, Bot, FileText, Inbox, AlertCircle, Loader2, WifiOff } from 'lucide-react'
+import { Sparkles, Plus, Trash2, CheckCircle2, Clock, X, ChevronDown, ChevronUp, Filter, Bot, FileText, Inbox, AlertCircle, Loader2, WifiOff, Send, ImageIcon, MessageCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 type Priority = 'urgent' | 'high' | 'normal'
@@ -15,6 +15,12 @@ const DEPT_ROLE: Record<string, string> = {
   'משפטי': 'Legal AI — מיכל', 'משאבי אנוש': 'HR AI — דניאל', 'טכנולוגיה': 'IT AI — רון',
   'תפעול': 'COO AI — עמית', 'אסטרטגיה': 'Strategy AI — דן', 'קריאייטיב': 'Creative AI — אלה',
   'מכירות': 'Sales AI — תמר', 'כולם': 'כל המחלקות',
+}
+
+interface ThreadMessage {
+  role: 'user' | 'agent'
+  text: string
+  timestamp: string
 }
 
 interface TimelineEntry {
@@ -35,6 +41,8 @@ interface Instruction {
   workProduct?: string
   source?: string
   timeline?: TimelineEntry[]
+  thread?: ThreadMessage[]
+  imageUrl?: string
 }
 
 const normalizeStatus = (s: string): InstructionStatus => {
@@ -70,6 +78,9 @@ export default function InstructionsPage() {
   const [fPriority, setFPriority] = useState<Priority | 'all'>('all')
   const [fDept, setFDept] = useState<string>('all')
   const [dbError, setDbError] = useState<string | null>(null)
+  const [followUpInputs, setFollowUpInputs] = useState<Record<string, string>>({})
+  const [followUpLoading, setFollowUpLoading] = useState<Record<string, boolean>>({})
+  const [imageLoading, setImageLoading] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const supabase = createClient()
@@ -181,6 +192,52 @@ export default function InstructionsPage() {
     setInstructions(prev => prev.filter(i => i.id !== id))
     const supabase = createClient()
     await supabase.from('instructions').delete().eq('id', id).eq('user_id', userId)
+  }
+
+  const sendFollowUp = async (inst: Instruction) => {
+    const text = (followUpInputs[inst.id] || '').trim()
+    if (!text || followUpLoading[inst.id]) return
+    const ts = () => new Date().toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
+    const userMsg: ThreadMessage = { role: 'user', text, timestamp: ts() }
+    const withUser: Instruction = { ...inst, thread: [...(inst.thread || []), userMsg] }
+    setInstructions(prev => prev.map(i => i.id === inst.id ? withUser : i))
+    setFollowUpInputs(prev => ({ ...prev, [inst.id]: '' }))
+    setFollowUpLoading(prev => ({ ...prev, [inst.id]: true }))
+    try {
+      const res = await fetch('/api/dept-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ department: inst.agent, instruction: inst.text, thread: withUser.thread }),
+      })
+      const data = await res.json()
+      const agentMsg: ThreadMessage = { role: 'agent', text: data.workProduct || data.acknowledgment || '', timestamp: ts() }
+      const final: Instruction = { ...withUser, thread: [...(withUser.thread || []), agentMsg] }
+      setInstructions(prev => prev.map(i => i.id === inst.id ? final : i))
+      await upsertInstruction(final)
+    } catch {
+      await upsertInstruction(withUser)
+    } finally {
+      setFollowUpLoading(prev => ({ ...prev, [inst.id]: false }))
+    }
+  }
+
+  const generateImage = async (inst: Instruction) => {
+    setImageLoading(prev => ({ ...prev, [inst.id]: true }))
+    try {
+      const res = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: inst.workProduct, department: inst.agent }),
+      })
+      const data = await res.json()
+      if (data.imageUrl) {
+        const updated: Instruction = { ...inst, imageUrl: data.imageUrl }
+        setInstructions(prev => prev.map(i => i.id === inst.id ? updated : i))
+        await upsertInstruction(updated)
+      }
+    } finally {
+      setImageLoading(prev => ({ ...prev, [inst.id]: false }))
+    }
   }
 
   return (
@@ -365,12 +422,80 @@ export default function InstructionsPage() {
 
                           {/* Work product */}
                           {inst.workProduct && (
-                            <div className="bg-white/3 border border-accent-cyan/15 rounded-xl p-4">
+                            <div className="bg-white/3 border border-accent-cyan/15 rounded-xl p-4 space-y-3">
                               <p className="text-xs font-semibold text-accent-cyan mb-2 flex items-center gap-1.5">
                                 <FileText className="w-3.5 h-3.5" />
                                 {inst.agentName || inst.agent} — תוצר עבודה
                               </p>
                               <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">{inst.workProduct}</p>
+
+                              {/* Generate image button */}
+                              {!inst.imageUrl ? (
+                                <button
+                                  onClick={() => generateImage(inst)}
+                                  disabled={imageLoading[inst.id]}
+                                  className="flex items-center gap-1.5 text-xs bg-accent-purple/10 hover:bg-accent-purple/20 border border-accent-purple/20 text-accent-purple px-3 py-2 rounded-xl transition-all disabled:opacity-40">
+                                  {imageLoading[inst.id] ? (
+                                    <><span className="w-3 h-3 border border-accent-purple border-t-transparent rounded-full animate-spin shrink-0" /> יוצר תמונה עם DALL·E...</>
+                                  ) : (
+                                    <><ImageIcon className="w-3.5 h-3.5" /> צור תמונה לפרסום (DALL·E)</>
+                                  )}
+                                </button>
+                              ) : (
+                                <div className="rounded-xl overflow-hidden border border-accent-purple/20">
+                                  <img src={inst.imageUrl} alt="תמונה שנוצרה" className="w-full" />
+                                  <div className="p-2 flex justify-between items-center bg-accent-purple/5">
+                                    <span className="text-xs text-text-muted">נוצר עם DALL·E 3</span>
+                                    <a href={inst.imageUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-accent-purple underline">פתח מלא</a>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Follow-up thread */}
+                          {inst.workProduct && (
+                            <div className="border border-border-muted rounded-xl p-3 space-y-2">
+                              <p className="text-xs font-semibold text-text-secondary flex items-center gap-1.5">
+                                <MessageCircle className="w-3.5 h-3.5" /> המשך שיחה עם {inst.agentName || inst.agent}
+                              </p>
+
+                              {inst.thread?.map((msg, i) => (
+                                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                  <div className={`max-w-[85%] rounded-xl px-3 py-2 ${msg.role === 'user' ? 'bg-accent-cyan/10 border border-accent-cyan/20' : 'bg-white/5 border border-border-muted'}`}>
+                                    <p className={`text-xs font-semibold mb-0.5 ${msg.role === 'user' ? 'text-accent-cyan' : 'text-text-secondary'}`}>
+                                      {msg.role === 'user' ? 'יו״ר' : (inst.agentName || inst.agent)}
+                                    </p>
+                                    <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                                    <p className="text-xs text-text-muted mt-1 text-left">{msg.timestamp}</p>
+                                  </div>
+                                </div>
+                              ))}
+
+                              {followUpLoading[inst.id] && (
+                                <div className="flex justify-start">
+                                  <div className="bg-white/5 border border-border-muted rounded-xl px-4 py-3 flex items-center gap-2">
+                                    <span className="w-3 h-3 border border-text-muted border-t-transparent rounded-full animate-spin" />
+                                    <span className="text-xs text-text-muted">{inst.agentName || inst.agent} מגיב...</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="flex gap-2 pt-1">
+                                <input
+                                  value={followUpInputs[inst.id] || ''}
+                                  onChange={e => setFollowUpInputs(prev => ({ ...prev, [inst.id]: e.target.value }))}
+                                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendFollowUp(inst) } }}
+                                  placeholder={`שאל שאלת המשך את ${inst.agentName || inst.agent}...`}
+                                  disabled={followUpLoading[inst.id]}
+                                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-cyan/50 transition-all disabled:opacity-50" />
+                                <button
+                                  onClick={() => sendFollowUp(inst)}
+                                  disabled={!followUpInputs[inst.id]?.trim() || followUpLoading[inst.id]}
+                                  className="bg-accent-cyan/10 hover:bg-accent-cyan/20 border border-accent-cyan/20 text-accent-cyan px-3 py-2 rounded-xl transition-all disabled:opacity-40">
+                                  <Send className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>

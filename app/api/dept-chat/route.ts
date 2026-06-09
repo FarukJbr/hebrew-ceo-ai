@@ -21,12 +21,31 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY חסר' }, { status: 500 })
 
-  const { department, instruction } = await req.json()
+  const { department, instruction, thread } = await req.json()
   if (!department || !instruction) return NextResponse.json({ error: 'חסרים שדות' }, { status: 400 })
 
   const agent = AGENTS[department] || { name: 'סוכן', role: 'AI', expertise: 'כללי', outputType: 'דוח' }
 
-  const prompt = `אתה ${agent.name}, ה-${agent.role} של חברת "${COMPANY}".
+  let prompt: string
+
+  if (thread && thread.length > 0) {
+    const threadText = thread.map((t: any) =>
+      `${t.role === 'user' ? 'יו״ר' : agent.name}: ${t.text}`
+    ).join('\n\n---\n\n')
+    const lastMsg = thread[thread.length - 1]?.text || ''
+    prompt = `אתה ${agent.name}, ה-${agent.role} של חברת "${COMPANY}".
+תחום מומחיות: ${agent.expertise}
+
+ההוראה המקורית שקיבלת: "${instruction}"
+
+היסטוריית השיחה עד כה:
+${threadText}
+
+הבקשה האחרונה של היו״ר: "${lastMsg}"
+
+ענה בעברית בגוף ראשון כ-${agent.name}. היה ממוקד ומקצועי. אם נשאלת שאלה — ענה עליה ישירות. אם ביקשו שינוי — בצע אותו ותאר מה שינית. אל תחזור על מה שכבר אמרת.`
+  } else {
+    prompt = `אתה ${agent.name}, ה-${agent.role} של חברת "${COMPANY}".
 תחום מומחיות: ${agent.expertise}
 
 קיבלת הוראה מהיו״ר: "${instruction}"
@@ -43,6 +62,7 @@ ${agent.outputType} מפורט ומקצועי — לפחות 5-8 נקודות ע
 
 **סטטוס ומה הלאה:**
 מה הצעד הבא ומה אתה צריך מהיו״ר כדי להמשיך.`
+  }
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
