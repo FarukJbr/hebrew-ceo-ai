@@ -18,11 +18,20 @@ CREATE TABLE IF NOT EXISTS public.board_decisions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS public.tasks (
+  id         UUID        PRIMARY KEY,
+  user_id    UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  data       JSONB       NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 ALTER TABLE public.instructions    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.board_decisions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tasks           ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users manage own instructions"    ON public.instructions;
 DROP POLICY IF EXISTS "Users manage own board_decisions" ON public.board_decisions;
+DROP POLICY IF EXISTS "Users manage own tasks"           ON public.tasks;
 
 CREATE POLICY "Users manage own instructions"
   ON public.instructions FOR ALL TO authenticated
@@ -30,6 +39,10 @@ CREATE POLICY "Users manage own instructions"
 
 CREATE POLICY "Users manage own board_decisions"
   ON public.board_decisions FOR ALL TO authenticated
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users manage own tasks"
+  ON public.tasks FOR ALL TO authenticated
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);`
 
 type CheckResult = {

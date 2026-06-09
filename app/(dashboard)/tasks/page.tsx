@@ -107,8 +107,12 @@ export default function TasksPage() {
 
   const addTask = async () => {
     if (!newTitle.trim()) return
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const uid = user?.id
+    if (!uid) return
     const newTask: Task = {
-      id: 'task-' + Date.now(),
+      id: crypto.randomUUID(),
       title: newTitle.trim(),
       description: newDesc.trim(),
       priority: newPriority,
@@ -121,8 +125,7 @@ export default function TasksPage() {
     setNewTitle(''); setNewDesc(''); setNewPriority('medium')
     setNewAssignee(DEPARTMENTS[0]); setNewDue(''); setNewCategory('')
     setShowForm(false)
-    const supabase = createClient()
-    await supabase.from('tasks').insert({ id: newTask.id, user_id: userId, data: newTask })
+    await supabase.from('tasks').upsert({ id: newTask.id, user_id: uid, data: newTask })
   }
 
   const counts = {
@@ -285,7 +288,9 @@ export default function TasksPage() {
                   setTasks(prev => prev.map(t => t.id === expandedTask.id ? updatedTask : t))
                   setExpandedTask(updatedTask)
                   const supabase = createClient()
-                  await supabase.from('tasks').update({ data: updatedTask }).eq('id', expandedTask.id).eq('user_id', userId)
+                  const { data: { user } } = await supabase.auth.getUser()
+                  const uid = user?.id
+                  if (uid) await supabase.from('tasks').upsert({ id: updatedTask.id, user_id: uid, data: updatedTask })
                 }}
                   className={`flex-1 text-xs py-2 rounded-xl transition-all border ${expandedTask.status === s ? 'bg-accent-cyan/20 border-accent-cyan/30 text-accent-cyan' : 'bg-white/5 border-border-muted text-text-muted hover:text-text-secondary'}`}>
                   {s === 'todo' ? 'לביצוע' : s === 'inprogress' ? 'בתהליך' : 'הושלם'}
