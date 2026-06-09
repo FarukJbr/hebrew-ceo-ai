@@ -22,11 +22,10 @@ export async function POST(req: NextRequest) {
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt: imagePrompt,
+        model: 'dall-e-2',
+        prompt: imagePrompt.slice(0, 1000),
         n: 1,
-        size: '1024x1024',
-        quality: 'standard',
+        size: '512x512',
       }),
     })
     data = await res.json()
