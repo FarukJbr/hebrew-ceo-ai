@@ -81,6 +81,7 @@ export default function InstructionsPage() {
   const [followUpInputs, setFollowUpInputs] = useState<Record<string, string>>({})
   const [followUpLoading, setFollowUpLoading] = useState<Record<string, boolean>>({})
   const [imageLoading, setImageLoading] = useState<Record<string, boolean>>({})
+  const [imageError, setImageError] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const supabase = createClient()
@@ -223,6 +224,7 @@ export default function InstructionsPage() {
 
   const generateImage = async (inst: Instruction) => {
     setImageLoading(prev => ({ ...prev, [inst.id]: true }))
+    setImageError(prev => ({ ...prev, [inst.id]: '' }))
     try {
       const res = await fetch('/api/generate-image', {
         method: 'POST',
@@ -234,7 +236,11 @@ export default function InstructionsPage() {
         const updated: Instruction = { ...inst, imageUrl: data.imageUrl }
         setInstructions(prev => prev.map(i => i.id === inst.id ? updated : i))
         await upsertInstruction(updated)
+      } else {
+        setImageError(prev => ({ ...prev, [inst.id]: data.error || 'שגיאה לא ידועה' }))
       }
+    } catch (e: any) {
+      setImageError(prev => ({ ...prev, [inst.id]: e.message || 'שגיאת רשת' }))
     } finally {
       setImageLoading(prev => ({ ...prev, [inst.id]: false }))
     }
@@ -431,16 +437,21 @@ export default function InstructionsPage() {
 
                               {/* Generate image button */}
                               {!inst.imageUrl ? (
-                                <button
-                                  onClick={() => generateImage(inst)}
-                                  disabled={imageLoading[inst.id]}
-                                  className="flex items-center gap-1.5 text-xs bg-accent-purple/10 hover:bg-accent-purple/20 border border-accent-purple/20 text-accent-purple px-3 py-2 rounded-xl transition-all disabled:opacity-40">
-                                  {imageLoading[inst.id] ? (
-                                    <><span className="w-3 h-3 border border-accent-purple border-t-transparent rounded-full animate-spin shrink-0" /> יוצר תמונה עם DALL·E...</>
-                                  ) : (
-                                    <><ImageIcon className="w-3.5 h-3.5" /> צור תמונה לפרסום (DALL·E)</>
+                                <div className="space-y-1.5">
+                                  <button
+                                    onClick={() => generateImage(inst)}
+                                    disabled={imageLoading[inst.id]}
+                                    className="flex items-center gap-1.5 text-xs bg-accent-purple/10 hover:bg-accent-purple/20 border border-accent-purple/20 text-accent-purple px-3 py-2 rounded-xl transition-all disabled:opacity-40">
+                                    {imageLoading[inst.id] ? (
+                                      <><span className="w-3 h-3 border border-accent-purple border-t-transparent rounded-full animate-spin shrink-0" /> יוצר תמונה עם DALL·E... (עד 30 שניות)</>
+                                    ) : (
+                                      <><ImageIcon className="w-3.5 h-3.5" /> צור תמונה לפרסום (DALL·E)</>
+                                    )}
+                                  </button>
+                                  {imageError[inst.id] && (
+                                    <p className="text-xs text-accent-red bg-accent-red/5 border border-accent-red/20 rounded-lg px-3 py-2">{imageError[inst.id]}</p>
                                   )}
-                                </button>
+                                </div>
                               ) : (
                                 <div className="rounded-xl overflow-hidden border border-accent-purple/20">
                                   <img src={inst.imageUrl} alt="תמונה שנוצרה" className="w-full" />
