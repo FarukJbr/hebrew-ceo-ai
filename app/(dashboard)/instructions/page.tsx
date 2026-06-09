@@ -445,8 +445,15 @@ export default function InstructionsPage() {
                                 <div className="rounded-xl overflow-hidden border border-accent-purple/20">
                                   <img src={inst.imageUrl} alt="תמונה שנוצרה" className="w-full" />
                                   <div className="p-2 flex justify-between items-center bg-accent-purple/5">
-                                    <span className="text-xs text-text-muted">נוצר עם DALL·E 3</span>
-                                    <a href={inst.imageUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-accent-purple underline">פתח מלא</a>
+                                    <span className="text-xs text-text-muted">נוצר עם DALL·E 3 — הורד לפני שה-URL יפוג</span>
+                                    <div className="flex items-center gap-2">
+                                      <a href={`/api/download-image?url=${encodeURIComponent(inst.imageUrl!)}`}
+                                        download="marketing-image.png"
+                                        className="text-xs bg-accent-purple/20 hover:bg-accent-purple/30 border border-accent-purple/30 text-accent-purple px-2 py-1 rounded-lg transition-all">
+                                        הורד
+                                      </a>
+                                      <a href={inst.imageUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-accent-purple underline">פתח מלא</a>
+                                    </div>
                                   </div>
                                 </div>
                               )}
