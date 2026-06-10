@@ -182,7 +182,7 @@ export default function MeetingsPage() {
   const addMeeting = async () => {
     if (!nTitle.trim() || !nDate.trim()) return
     const newMeeting: Meeting = {
-      id: 'meet-' + Date.now(),
+      id: crypto.randomUUID(),
       title: nTitle,
       date: nDate,
       time: nTime || '09:00',

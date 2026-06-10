@@ -92,7 +92,7 @@ export default function ChatPage() {
     const supabase = createClient()
 
     const userMsg: Message = {
-      id: 'msg-' + Date.now(),
+      id: crypto.randomUUID(),
       role: 'user',
       content,
       time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
@@ -118,7 +118,7 @@ export default function ChatPage() {
     }
 
     const assistantMsg: Message = {
-      id: 'msg-' + (Date.now() + 1),
+      id: crypto.randomUUID(),
       role: 'assistant',
       content: responseText,
       time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),

@@ -29,7 +29,6 @@ interface TaxSettings {
 }
 
 interface InsuranceSettings {
-  code: string
   username: string
   idNumber: string
   password: string
@@ -73,7 +72,7 @@ export default function CustomersPage() {
   const [taxSaved, setTaxSaved] = useState(false)
 
   // Insurance state
-  const [insForm, setInsForm] = useState<InsuranceSettings>({ code: '', username: '', idNumber: '', password: '' })
+  const [insForm, setInsForm] = useState<InsuranceSettings>({ username: '', idNumber: '', password: '' })
   const [savingIns, setSavingIns] = useState(false)
   const [insSaved, setInsSaved] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -95,7 +94,6 @@ export default function CustomersPage() {
       for (const row of settings || []) {
         if (row.data?.key === 'tax_authority') setTaxForm({ permanentCode: row.data.permanentCode || '' })
         if (row.data?.key === 'national_insurance') setInsForm({
-          code: row.data.code || '',
           username: row.data.username || '',
           idNumber: row.data.idNumber || '',
           password: row.data.password || '',
@@ -361,17 +359,10 @@ export default function CustomersPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-text-muted mb-1.5">קוד</label>
-                  <input value={insForm.code} onChange={e => setInsForm(f => ({ ...f, code: e.target.value }))}
-                    placeholder="קוד..." dir="ltr" className={fieldClass} />
-                </div>
-                <div>
-                  <label className="block text-xs text-text-muted mb-1.5">שם משתמש</label>
-                  <input value={insForm.username} onChange={e => setInsForm(f => ({ ...f, username: e.target.value }))}
-                    placeholder="שם משתמש..." dir="ltr" className={fieldClass} />
-                </div>
+              <div>
+                <label className="block text-xs text-text-muted mb-1.5">שם משתמש</label>
+                <input value={insForm.username} onChange={e => setInsForm(f => ({ ...f, username: e.target.value }))}
+                  placeholder="שם משתמש..." dir="ltr" className={fieldClass} />
               </div>
 
               <div>

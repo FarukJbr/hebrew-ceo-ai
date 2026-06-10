@@ -78,7 +78,7 @@ export default function ReportsPage() {
   const generateReport = async () => {
     if (!nTitle.trim()) return
     const newReport: Report = {
-      id: 'rep-'+Date.now(), title: nTitle, date: new Date().toLocaleDateString('he-IL').replace(/\./g,'/'),
+      id: crypto.randomUUID(), title: nTitle, date: new Date().toLocaleDateString('he-IL').replace(/\./g,'/'),
       type: nType, status: 'generating', size: '—', format: nFormat,
       dateRange: nFrom && nTo ? `${nFrom} — ${nTo}` : undefined
     }
