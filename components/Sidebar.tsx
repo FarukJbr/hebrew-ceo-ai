@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, Users, Wallet, MessageSquare,
   ListChecks, Bot, Calendar, BarChart3, Building2,
-  Sparkles, LogOut, Vote,
+  Sparkles, LogOut, Vote, Send,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +18,8 @@ const navItems = [
   { href: '/tasks',       label: 'משימות',       icon: ListChecks },
   { href: '/chat',        label: 'צ׳אט AI',      icon: MessageSquare },
   { href: '/agents',      label: 'מחלקות',       icon: Bot },
+  { href: '/customers',   label: 'לקוחות',       icon: Users },
+  { href: '/communications', label: 'תקשורת',    icon: Send },
   { href: '/meetings',    label: 'ישיבות',       icon: Calendar },
   { href: '/reports',     label: 'דוחות',        icon: BarChart3 },
 ]
