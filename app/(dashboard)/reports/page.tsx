@@ -99,20 +99,122 @@ export default function ReportsPage() {
   const handleDownload = async (report: Report) => {
     const XLSX = await import('xlsx')
     const wb = XLSX.utils.book_new()
-    const wsData = [
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const uid = user?.id
+    const t = report.type
+
+    const isGeneral = ['שבועי','רבעוני','חצי שנתי','שנתי'].includes(t)
+
+    // ── Cover sheet ──
+    const coverWS = XLSX.utils.aoa_to_sheet([
       ['שם הדוח', report.title],
-      ['סוג', report.type],
-      ['תאריך', report.date],
-      ['פורמט', report.format.toUpperCase()],
-      ['סטטוס', report.status === 'ready' ? 'מוכן' : 'בהכנה'],
-      ['גודל', report.size !== '—' ? report.size : 'בהכנה'],
-      ...(report.dateRange ? [['טווח תאריכים', report.dateRange]] : []),
-      ['', ''],
-      ['הופק על ידי', 'מערכת ניהול גבר יזמות'],
-    ]
-    const ws = XLSX.utils.aoa_to_sheet(wsData)
-    ws['!cols'] = [{ wch: 22 }, { wch: 42 }]
-    XLSX.utils.book_append_sheet(wb, ws, 'מידע דוח')
+      ['סוג', t],
+      ['תאריך הפקה', report.date],
+      ['טווח תאריכים', report.dateRange || '—'],
+      ['הופק על ידי', 'מערכת ניהול'],
+    ])
+    coverWS['!cols'] = [{ wch: 22 }, { wch: 44 }]
+    XLSX.utils.book_append_sheet(wb, coverWS, 'כללי')
+
+    if (uid) {
+      // ── Tasks ──
+      if (isGeneral || t.includes('משימות') || t.includes('הנהלה') || t.includes('מחלקות')) {
+        const { data: rows } = await supabase.from('tasks').select('data').eq('user_id', uid)
+        const tasks = rows?.map((r: any) => r.data) || []
+        if (tasks.length) {
+          const ws = XLSX.utils.aoa_to_sheet([
+            ['כותרת', 'סטטוס', 'עדיפות', 'מחלקה', 'תאריך יעד'],
+            ...tasks.map((t: any) => [t.title || t.text || '—', t.status || '—', t.priority || '—', t.department || '—', t.dueDate || '—']),
+          ])
+          ws['!cols'] = [{ wch: 30 }, { wch: 14 }, { wch: 12 }, { wch: 18 }, { wch: 14 }]
+          XLSX.utils.book_append_sheet(wb, ws, 'משימות')
+        }
+      }
+
+      // ── Meetings ──
+      if (isGeneral || t.includes('ישיבות')) {
+        const { data: rows } = await supabase.from('meetings').select('data').eq('user_id', uid)
+        const meetings = rows?.map((r: any) => r.data) || []
+        if (meetings.length) {
+          const ws = XLSX.utils.aoa_to_sheet([
+            ['כותרת', 'תאריך', 'שעה', 'משך', 'סוג', 'מיקום', 'משתתפים', 'סטטוס'],
+            ...meetings.map((m: any) => [m.title, m.date, m.time, m.duration, m.type === 'video' ? 'וידאו' : 'פיזי', m.location, (m.participants || []).join(', '), m.status === 'upcoming' ? 'קרוב' : 'עבר']),
+          ])
+          ws['!cols'] = [{ wch: 28 }, { wch: 12 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 20 }, { wch: 40 }, { wch: 8 }]
+          XLSX.utils.book_append_sheet(wb, ws, 'ישיבות')
+        }
+      }
+
+      // ── Customers ──
+      if (isGeneral || t.includes('שיווק') || t.includes('מכירות')) {
+        const { data: rows } = await supabase.from('customers').select('data').eq('user_id', uid)
+        const customers = rows?.map((r: any) => r.data) || []
+        if (customers.length) {
+          const statusMap: Record<string, string> = { lead: 'ליד', active: 'פעיל', inactive: 'לא פעיל' }
+          const ws = XLSX.utils.aoa_to_sheet([
+            ['שם', 'חברה', 'אימייל', 'טלפון', 'סטטוס', 'תאריך הוספה'],
+            ...customers.map((c: any) => [c.name, c.company || '—', c.email || '—', c.phone || '—', statusMap[c.status] || c.status, c.createdAt || '—']),
+          ])
+          ws['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 28 }, { wch: 14 }, { wch: 12 }, { wch: 14 }]
+          XLSX.utils.book_append_sheet(wb, ws, 'לקוחות')
+        }
+      }
+
+      // ── Department work products ──
+      if (isGeneral || t.includes('מחלקות') || t.includes('הנהלה') || t.includes('שיווק') || t.includes('נדל') || t.includes('כספים')) {
+        const { data: rows } = await supabase.from('instructions').select('data').eq('user_id', uid)
+        const instructions = rows?.map((r: any) => r.data) || []
+        const filtered = t.includes('כספים') ? instructions.filter((i: any) => i.department === 'finance')
+          : t.includes('שיווק') ? instructions.filter((i: any) => i.department === 'marketing')
+          : t.includes('נדל') ? instructions.filter((i: any) => i.department === 'realestate')
+          : t.includes('הנהלה') ? instructions.filter((i: any) => i.department === 'management')
+          : instructions
+        if (filtered.length) {
+          const ws = XLSX.utils.aoa_to_sheet([
+            ['מחלקה', 'הוראה', 'תוצר עבודה', 'תאריך'],
+            ...filtered.map((i: any) => [i.department || '—', (i.instruction || '').slice(0, 120), (i.result || '').slice(0, 300), i.createdAt ? new Date(i.createdAt).toLocaleDateString('he-IL') : '—']),
+          ])
+          ws['!cols'] = [{ wch: 14 }, { wch: 40 }, { wch: 70 }, { wch: 14 }]
+          XLSX.utils.book_append_sheet(wb, ws, 'תוצרי מחלקות')
+        }
+      }
+
+      // ── Finance ──
+      if (isGeneral || t.includes('כספים')) {
+        const { data: cf } = await supabase.from('cf_data').select('accounts,records,bank_rows').eq('user_id', uid).single()
+        if (cf) {
+          const accounts: any[] = cf.accounts || []
+          const records: any[] = cf.records || []
+          const bankRows: any[] = cf.bank_rows || []
+          if (accounts.length) {
+            const ws = XLSX.utils.aoa_to_sheet([
+              ['שם חשבון', 'סוג', 'יתרת פתיחה (₪)', 'מסגרת (₪)'],
+              ...accounts.map((a: any) => [a.name, a.type === 'bank' ? 'חשבון בנק' : 'כרטיס אשראי', a.opening, a.limit || 0]),
+            ])
+            ws['!cols'] = [{ wch: 22 }, { wch: 16 }, { wch: 18 }, { wch: 14 }]
+            XLSX.utils.book_append_sheet(wb, ws, 'חשבונות')
+          }
+          if (records.length) {
+            const ws = XLSX.utils.aoa_to_sheet([
+              ['תאריך', 'תיאור', 'סוג', 'קטגוריה', 'עסקי/פרטי', 'סכום (₪)'],
+              ...records.map((r: any) => [r.date, r.description, r.type, r.category, r.bp === 'biz' ? 'עסקי' : 'פרטי', r.amount]),
+            ])
+            ws['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 8 }, { wch: 20 }, { wch: 10 }, { wch: 12 }]
+            XLSX.utils.book_append_sheet(wb, ws, 'רישומים פיננסיים')
+          }
+          if (bankRows.length) {
+            const ws = XLSX.utils.aoa_to_sheet([
+              ['תאריך', 'תיאור', 'חיוב (₪)', 'זיכוי (₪)', 'עסקי/פרטי'],
+              ...bankRows.map((r: any) => [r.date, r.description, r.debit || 0, r.credit || 0, r.bp === 'biz' ? 'עסקי' : 'פרטי']),
+            ])
+            ws['!cols'] = [{ wch: 12 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 10 }]
+            XLSX.utils.book_append_sheet(wb, ws, 'תנועות בנק')
+          }
+        }
+      }
+    }
+
     XLSX.writeFile(wb, `${report.title}.xlsx`)
     setDownloadedIds(prev => new Set([...prev, report.id]))
   }
