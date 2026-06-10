@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
-import { Bot, CheckCircle2, Clock, Activity, MessageSquare, X, Send, Filter, Sparkles, ChevronDown, ChevronUp, WifiOff } from 'lucide-react'
+import { Bot, CheckCircle2, Clock, Activity, MessageSquare, X, Send, Filter, Sparkles, ChevronDown, ChevronUp, WifiOff, Target, Play } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const departments = [
@@ -38,12 +38,24 @@ export default function AgentsPage() {
   const [expandedDept, setExpandedDept] = useState<string | null>(null)
   const [dbError, setDbError] = useState<string | null>(null)
 
+  // Department goals state
+  const [deptGoals, setDeptGoals] = useState<Record<string, string>>({})
+  const [goalTarget, setGoalTarget] = useState<typeof departments[0] | null>(null)
+  const [goalText, setGoalText] = useState('')
+  const [isSavingGoal, setIsSavingGoal] = useState(false)
+
+  // Run-now automation state
+  const [isRunningAuto, setIsRunningAuto] = useState(false)
+  const [autoResult, setAutoResult] = useState<string | null>(null)
+
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data }) => {
       const uid = data.user?.id
       if (!uid) return
       setUserId(uid)
+
+      // Load instructions
       const { data: rows } = await supabase
         .from('instructions')
         .select('data')
@@ -57,6 +69,14 @@ export default function AgentsPage() {
         }
       }
       setActiveInstructions(map)
+
+      // Load department goals
+      const { data: goalRows } = await supabase.from('department_goals').select('data').eq('user_id', uid)
+      const goalsMap: Record<string, string> = {}
+      for (const row of goalRows || []) {
+        if (row.data?.department) goalsMap[row.data.department] = row.data.goal
+      }
+      setDeptGoals(goalsMap)
     })
   }, [])
 
@@ -121,6 +141,36 @@ export default function AgentsPage() {
     }
   }
 
+  const saveGoal = async () => {
+    if (!goalTarget || !goalText.trim()) return
+    setIsSavingGoal(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const uid = user?.id
+    if (!uid) { setIsSavingGoal(false); return }
+    const id = crypto.randomUUID()
+    await supabase.from('department_goals').upsert({ id, user_id: uid, data: { department: goalTarget.id, goal: goalText.trim() } })
+    setDeptGoals(prev => ({ ...prev, [goalTarget.id]: goalText.trim() }))
+    setGoalTarget(null)
+    setGoalText('')
+    setIsSavingGoal(false)
+  }
+
+  const runAutomationNow = async () => {
+    if (isRunningAuto) return
+    setIsRunningAuto(true)
+    setAutoResult(null)
+    try {
+      const res = await fetch('/api/cron/run-now', { method: 'POST' })
+      const data = await res.json()
+      setAutoResult(`הושלם — עובדו ${data.processed ?? 0} משימות`)
+    } catch {
+      setAutoResult('שגיאה בהפעלת האוטומציה')
+    } finally {
+      setIsRunningAuto(false)
+    }
+  }
+
   const active = departments.filter(d => d.status === 'active').length
 
   return (
@@ -139,6 +189,15 @@ export default function AgentsPage() {
             <button onClick={() => setDbError(null)} className="text-red-400/60 hover:text-red-400"><X className="w-4 h-4" /></button>
           </div>
         )}
+
+        {autoResult && (
+          <div className="flex items-center gap-3 bg-accent-green/10 border border-accent-green/20 rounded-2xl p-4">
+            <CheckCircle2 className="w-4 h-4 text-accent-green shrink-0" />
+            <p className="text-sm text-accent-green flex-1">{autoResult}</p>
+            <button onClick={() => setAutoResult(null)} className="text-accent-green/60 hover:text-accent-green"><X className="w-4 h-4" /></button>
+          </div>
+        )}
+
         <div className="glass-card rounded-2xl p-4 flex items-center gap-6 flex-wrap">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2.5 w-2.5">
@@ -151,6 +210,19 @@ export default function AgentsPage() {
           <span className="text-sm text-text-secondary">{departments.length - active} בסטנדבי</span>
           <div className="h-4 w-px bg-border-muted" />
           <span className="text-sm text-text-secondary">{Object.keys(activeInstructions).length} מחלקות עם הוראות פעילות</span>
+          <div className="h-4 w-px bg-border-muted" />
+          <span className="text-sm text-text-secondary">{Object.keys(deptGoals).length} יעדים מוגדרים</span>
+          <button
+            onClick={runAutomationNow}
+            disabled={isRunningAuto}
+            className="mr-auto flex items-center gap-2 bg-accent-purple/20 border border-accent-purple/30 text-accent-purple text-xs font-semibold px-4 py-2 rounded-xl hover:bg-accent-purple/30 disabled:opacity-50 transition-all"
+          >
+            {isRunningAuto ? (
+              <><span className="w-3.5 h-3.5 border-2 border-accent-purple border-t-transparent rounded-full animate-spin" /> מריץ אוטומציה...</>
+            ) : (
+              <><Play className="w-3.5 h-3.5" /> הפעל אוטומציה עכשיו</>
+            )}
+          </button>
         </div>
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -193,6 +265,7 @@ export default function AgentsPage() {
             const c = colorMap[dept.color]
             const instrInfo = activeInstructions[dept.id]
             const isExpanded = expandedDept === dept.id
+            const currentGoal = deptGoals[dept.id]
             return (
               <div key={dept.id} className={`glass-card rounded-2xl p-5 border ${instrInfo ? 'border-accent-amber/30' : c.border} transition-all`}>
                 <div className="flex items-start gap-4">
@@ -211,6 +284,16 @@ export default function AgentsPage() {
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {dept.specialty.map(s => <span key={s} className="text-xs bg-white/5 text-text-muted px-2 py-0.5 rounded-lg">{s}</span>)}
                     </div>
+
+                    {currentGoal && (
+                      <div className="mt-3 rounded-xl border border-accent-purple/20 bg-accent-purple/5 p-3">
+                        <div className="flex items-center gap-1 mb-1">
+                          <Target className="w-3 h-3 text-accent-purple" />
+                          <span className="text-xs font-semibold text-accent-purple">יעד אוטומטי</span>
+                        </div>
+                        <p className="text-xs text-text-secondary line-clamp-2">{currentGoal}</p>
+                      </div>
+                    )}
 
                     {instrInfo && (
                       <div className="mt-3 rounded-xl border border-accent-amber/20 bg-accent-amber/5 p-3 space-y-2">
@@ -233,7 +316,14 @@ export default function AgentsPage() {
                       </div>
                     )}
 
-                    <div className="flex items-center justify-end mt-3 pt-3 border-t border-border-muted">
+                    <div className="flex items-center justify-end gap-3 mt-3 pt-3 border-t border-border-muted">
+                      <button
+                        onClick={() => { setGoalTarget(dept); setGoalText(deptGoals[dept.id] || '') }}
+                        className="flex items-center gap-1 text-xs text-accent-purple hover:underline"
+                      >
+                        <Target className="w-3.5 h-3.5" />
+                        {currentGoal ? 'ערוך יעד' : 'הגדר יעד'}
+                      </button>
                       <button onClick={() => { setInstructionTarget(dept); setInstructionText('') }}
                         className={`flex items-center gap-1 text-xs ${c.text} hover:underline`}>
                         <MessageSquare className="w-3.5 h-3.5" />
@@ -248,6 +338,7 @@ export default function AgentsPage() {
         </div>
       </div>
 
+      {/* Send Instruction Modal */}
       {instructionTarget && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => !isSending && setInstructionTarget(null)}>
           <div className="bg-bg-card border border-border-muted rounded-2xl p-6 max-w-md w-full space-y-4 animate-fade-in" onClick={e => e.stopPropagation()}>
@@ -276,6 +367,52 @@ export default function AgentsPage() {
               </button>
               {!isSending && (
                 <button onClick={() => setInstructionTarget(null)} className="px-4 bg-white/5 text-text-secondary text-sm rounded-xl hover:bg-white/8 transition-all">
+                  ביטול
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Set Department Goal Modal */}
+      {goalTarget && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => !isSavingGoal && setGoalTarget(null)}>
+          <div className="bg-bg-card border border-border-muted rounded-2xl p-6 max-w-md w-full space-y-4 animate-fade-in" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
+                <Target className="w-4 h-4 text-accent-purple" />
+                יעד אוטומטי — מחלקת {goalTarget.id}
+              </h3>
+              {!isSavingGoal && <button onClick={() => setGoalTarget(null)} className="text-text-muted hover:text-text-primary"><X className="w-5 h-5" /></button>}
+            </div>
+            <p className="text-xs text-text-muted">הגדר יעד שיופעל אוטומטית כל 6 שעות על ידי {goalTarget.agent}.</p>
+            <div className="flex items-center gap-2 text-xs text-text-secondary bg-white/5 rounded-xl px-3 py-2">
+              <Bot className="w-3.5 h-3.5" />
+              <span>{goalTarget.agent} — {goalTarget.role}</span>
+            </div>
+            <textarea
+              value={goalText}
+              onChange={e => setGoalText(e.target.value)}
+              placeholder={`הגדר יעד אוטומטי למחלקת ${goalTarget.id}...`}
+              rows={4}
+              disabled={isSavingGoal}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-purple/50 transition-all resize-none disabled:opacity-60"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={saveGoal}
+                disabled={!goalText.trim() || isSavingGoal}
+                className="flex-1 flex items-center justify-center gap-2 bg-accent-purple text-white font-semibold text-sm py-2.5 rounded-xl hover:bg-accent-purple/90 disabled:opacity-40 transition-all"
+              >
+                {isSavingGoal ? (
+                  <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> שומר...</>
+                ) : (
+                  <><Target className="w-4 h-4" /> שמור יעד</>
+                )}
+              </button>
+              {!isSavingGoal && (
+                <button onClick={() => setGoalTarget(null)} className="px-4 bg-white/5 text-text-secondary text-sm rounded-xl hover:bg-white/8 transition-all">
                   ביטול
                 </button>
               )}
