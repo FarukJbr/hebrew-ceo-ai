@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/Header'
 import { Send, Bot, User, Sparkles, RefreshCw } from 'lucide-react'
+import { addNotification } from '@/lib/notifications'
 
 interface Message {
   id: string
@@ -128,6 +129,7 @@ export default function ChatPage() {
     setLoading(false)
 
     await supabase.from('chat_messages').insert({ id: assistantMsg.id, user_id: userId, data: assistantMsg })
+    await addNotification('אריאל AI השיב לשאלתך בצ׳אט', 'info')
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

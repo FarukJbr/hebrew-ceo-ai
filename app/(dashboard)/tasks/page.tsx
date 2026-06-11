@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
 import { Plus, Flag, User, Calendar, CheckCircle2, Circle, Clock, X, ChevronDown, ChevronUp, Filter } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { addNotification } from '@/lib/notifications'
 
 type Priority = 'high' | 'medium' | 'low'
 type Status = 'todo' | 'inprogress' | 'done'
@@ -291,6 +292,7 @@ export default function TasksPage() {
                   const { data: { user } } = await supabase.auth.getUser()
                   const uid = user?.id
                   if (uid) await supabase.from('tasks').upsert({ id: updatedTask.id, user_id: uid, data: updatedTask })
+                  if (s === 'done') await addNotification(`משימה הושלמה: ${updatedTask.title}`, 'success')
                 }}
                   className={`flex-1 text-xs py-2 rounded-xl transition-all border ${expandedTask.status === s ? 'bg-accent-cyan/20 border-accent-cyan/30 text-accent-cyan' : 'bg-white/5 border-border-muted text-text-muted hover:text-text-secondary'}`}>
                   {s === 'todo' ? 'לביצוע' : s === 'inprogress' ? 'בתהליך' : 'הושלם'}

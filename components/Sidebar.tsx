@@ -5,10 +5,11 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, Users, Wallet, MessageSquare,
-  ListChecks, Bot, Calendar, BarChart3, Building2,
+  ListChecks, Bot, Calendar, BarChart3,
   Sparkles, LogOut, Vote, Send,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Logo } from '@/components/Logo'
 
 const navItems = [
   { href: '/',            label: 'לוח בקרה',     icon: LayoutDashboard },
@@ -43,10 +44,7 @@ export function Sidebar() {
                       flex flex-col overflow-hidden">
       {/* Logo */}
       <div className="flex items-center gap-3 p-5 border-b border-border-muted">
-        <div className="flex items-center justify-center w-9 h-9 rounded-xl"
-          style={{ background: 'rgba(212,175,55,0.12)', border: '1px solid rgba(212,175,55,0.3)' }}>
-          <Building2 className="w-5 h-5 animate-spin-logo" style={{ color: '#d4af37' }} />
-        </div>
+        <Logo size={36} spin />
         <div>
           <p className="text-sm font-bold text-text-primary">Prime Ledger</p>
           <p className="text-xs text-text-muted">גבר יזמות</p>

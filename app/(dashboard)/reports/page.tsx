@@ -5,6 +5,7 @@ import { Header } from '@/components/Header'
 import { BarChart2, TrendingUp, Download, FileText, Calendar, Plus, X, Filter, CheckCircle2, Clock } from 'lucide-react'
 import { DashboardCharts } from '@/components/DashboardCharts'
 import { createClient } from '@/lib/supabase/client'
+import { addNotification } from '@/lib/notifications'
 
 interface Report {
   id: string
@@ -93,6 +94,7 @@ export default function ReportsPage() {
       const updatedReport: Report = { ...newReport, status: 'ready', size: `${(Math.random()*3+0.5).toFixed(1)} MB` }
       setReports(prev => prev.map(r => r.id === newReport.id ? updatedReport : r))
       await supabase.from('reports').update({ data: updatedReport }).eq('id', newReport.id).eq('user_id', userId)
+      await addNotification(`הדוח "${newReport.title}" מוכן להורדה`, 'success')
     }, 3000)
   }
 
@@ -217,6 +219,7 @@ export default function ReportsPage() {
 
     XLSX.writeFile(wb, `${report.title}.xlsx`)
     setDownloadedIds(prev => new Set([...prev, report.id]))
+    await addNotification(`הדוח "${report.title}" הורד בהצלחה`, 'success')
   }
 
   const allTypes = ['all', ...Array.from(new Set(reports.map(r => r.type.split(' — ')[0])))]

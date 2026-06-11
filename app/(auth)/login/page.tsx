@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Eye, EyeOff, Building2, Lock, Mail, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Lock, Mail, Loader2 } from 'lucide-react'
+import { Logo } from '@/components/Logo'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -34,21 +35,23 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-bg-base bg-grid-pattern flex items-center justify-center p-4">
       {/* Background glow effects */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent-cyan/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent-purple/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-3xl pointer-events-none"
+           style={{ background: 'rgba(212,175,55,0.05)' }} />
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-3xl pointer-events-none"
+           style={{ background: 'rgba(212,175,55,0.03)' }} />
 
       <div className="w-full max-w-md animate-fade-in relative">
         {/* Logo + Company */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent-cyan/10 border border-accent-cyan/20 mb-4 glow-cyan-sm">
-            <Building2 className="w-8 h-8 text-accent-cyan" />
+          <div className="inline-flex items-center justify-center mb-4">
+            <Logo size={72} spin />
           </div>
           <h1 className="text-2xl font-bold text-text-primary">Prime Ledger Solutions</h1>
           <p className="text-text-secondary text-sm mt-1">גבר יזמות ייעוץ עסקי והשקעות</p>
         </div>
 
         {/* Login Card */}
-        <div className="glass-card rounded-2xl p-8 glow-cyan-sm">
+        <div className="glass-card rounded-2xl p-8" style={{ boxShadow: '0 0 30px rgba(212,175,55,0.08)' }}>
           <h2 className="text-lg font-semibold text-text-primary mb-1">כניסה למערכת</h2>
           <p className="text-text-secondary text-sm mb-6">ברוך הבא, יו״ר הדירקטוריון</p>
 
@@ -66,10 +69,12 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   placeholder="chairman@company.com"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pr-10
+                  className="w-full bg-white/5 border rounded-xl px-4 py-3 pr-10
                              text-text-primary placeholder-text-muted text-sm
-                             focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/20
-                             transition-all duration-200"
+                             focus:outline-none transition-all duration-200"
+                  style={{ borderColor: 'rgba(212,175,55,0.2)' }}
+                  onFocus={e => e.currentTarget.style.borderColor = 'rgba(212,175,55,0.5)'}
+                  onBlur={e => e.currentTarget.style.borderColor = 'rgba(212,175,55,0.2)'}
                   dir="ltr"
                 />
               </div>
@@ -88,10 +93,12 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   placeholder="••••••••"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pr-10 pl-10
+                  className="w-full bg-white/5 border rounded-xl px-4 py-3 pr-10 pl-10
                              text-text-primary placeholder-text-muted text-sm
-                             focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/20
-                             transition-all duration-200"
+                             focus:outline-none transition-all duration-200"
+                  style={{ borderColor: 'rgba(212,175,55,0.2)' }}
+                  onFocus={e => e.currentTarget.style.borderColor = 'rgba(212,175,55,0.5)'}
+                  onBlur={e => e.currentTarget.style.borderColor = 'rgba(212,175,55,0.2)'}
                   dir="ltr"
                 />
                 <button
@@ -115,10 +122,15 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || !email || !password}
-              className="w-full bg-accent-cyan text-bg-base font-semibold py-3 rounded-xl
-                         hover:bg-accent-cyan/90 active:scale-[0.98]
+              className="w-full font-semibold py-3 rounded-xl
+                         active:scale-[0.98]
                          disabled:opacity-50 disabled:cursor-not-allowed
-                         transition-all duration-200 glow-cyan flex items-center justify-center gap-2"
+                         transition-all duration-200 flex items-center justify-center gap-2"
+              style={{
+                background: 'linear-gradient(135deg, #d4af37, #b8922a)',
+                color: '#13100b',
+                boxShadow: '0 0 20px rgba(212,175,55,0.25)',
+              }}
             >
               {loading ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> מתחבר...</>
