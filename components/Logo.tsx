@@ -4,7 +4,7 @@ interface LogoProps {
   className?: string
 }
 
-export function Logo({ size = 40, spin = false, className = '' }: LogoProps) {
+export function Logo({ size = 40, className = '' }: LogoProps) {
   return (
     <svg
       width={size}
@@ -12,65 +12,29 @@ export function Logo({ size = 40, spin = false, className = '' }: LogoProps) {
       viewBox="0 0 100 100"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`${spin ? 'animate-spin-logo' : ''} ${className}`}
+      className={className}
       style={{ display: 'block' }}
     >
-      {/* Outer ring */}
-      <circle cx="50" cy="50" r="47" stroke="url(#goldRing)" strokeWidth="2" fill="none" />
+      {/* 4 ascending bars — light blue */}
+      <rect x="15" y="57" width="9" height="15" rx="2" fill="#80d4f0" />
+      <rect x="27" y="48" width="9" height="24" rx="2" fill="#6dcce8" />
+      <rect x="39" y="38" width="9" height="34" rx="2" fill="#5ac2e0" />
+      <rect x="51" y="27" width="9" height="45" rx="2" fill="#48b8d8" />
 
-      {/* Inner glow circle */}
-      <circle cx="50" cy="50" r="38" fill="url(#goldBg)" opacity="0.9" />
-
-      {/* Star of David / Magen David style hexagram - spiritual touch */}
-      <polygon
-        points="50,18 62,38 82,38 70,55 76,75 50,63 24,75 30,55 18,38 38,38"
+      {/* Orbit ring: center(37,55) r=26, clockwise 315° from right(0°) to upper-right(-45°) */}
+      <path
+        d="M 63 55 A 26 26 0 1 1 55 36"
+        stroke="#4488cc"
+        strokeWidth="7"
         fill="none"
-        stroke="url(#goldAccent)"
-        strokeWidth="1.5"
-        opacity="0.4"
+        strokeLinecap="round"
       />
 
-      {/* Hebrew letter Peh (פ) stylized as "PL" monogram */}
-      <text
-        x="50"
-        y="57"
-        textAnchor="middle"
-        fontFamily="Georgia, serif"
-        fontSize="28"
-        fontWeight="bold"
-        fill="url(#goldText)"
-        letterSpacing="-1"
-      >
-        PL
-      </text>
+      {/* Arrow line from ring tip extending upper-right */}
+      <line x1="55" y1="36" x2="76" y2="12" stroke="#4488cc" strokeWidth="7" strokeLinecap="round" />
 
-      {/* Small decorative dots */}
-      <circle cx="50" cy="10" r="2.5" fill="#d4af37" opacity="0.7" />
-      <circle cx="50" cy="90" r="2.5" fill="#d4af37" opacity="0.7" />
-      <circle cx="10" cy="50" r="2.5" fill="#d4af37" opacity="0.7" />
-      <circle cx="90" cy="50" r="2.5" fill="#d4af37" opacity="0.7" />
-
-      {/* Gradients */}
-      <defs>
-        <linearGradient id="goldRing" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#f5d060" />
-          <stop offset="50%" stopColor="#d4af37" />
-          <stop offset="100%" stopColor="#a07820" />
-        </linearGradient>
-        <radialGradient id="goldBg" cx="40%" cy="35%" r="65%">
-          <stop offset="0%" stopColor="#2a2010" />
-          <stop offset="100%" stopColor="#1a1508" />
-        </radialGradient>
-        <linearGradient id="goldAccent" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#f5d060" />
-          <stop offset="100%" stopColor="#d4af37" />
-        </linearGradient>
-        <linearGradient id="goldText" x1="0" y1="30" x2="0" y2="70" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#f5e070" />
-          <stop offset="50%" stopColor="#d4af37" />
-          <stop offset="100%" stopColor="#b8922a" />
-        </linearGradient>
-      </defs>
+      {/* Filled arrowhead */}
+      <polygon points="76,12 64,17 73,25" fill="#4488cc" />
     </svg>
   )
 }
