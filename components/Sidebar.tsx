@@ -43,8 +43,9 @@ export function Sidebar() {
                       flex flex-col overflow-hidden">
       {/* Logo */}
       <div className="flex items-center gap-3 p-5 border-b border-border-muted">
-        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-accent-cyan/10 border border-accent-cyan/20">
-          <Building2 className="w-5 h-5 text-accent-cyan" />
+        <div className="flex items-center justify-center w-9 h-9 rounded-xl"
+          style={{ background: 'rgba(212,175,55,0.12)', border: '1px solid rgba(212,175,55,0.3)' }}>
+          <Building2 className="w-5 h-5 animate-spin-logo" style={{ color: '#d4af37' }} />
         </div>
         <div>
           <p className="text-sm font-bold text-text-primary">Prime Ledger</p>
