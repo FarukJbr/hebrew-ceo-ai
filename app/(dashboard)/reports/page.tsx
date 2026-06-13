@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
-import { BarChart2, TrendingUp, Download, FileText, Calendar, Plus, X, Filter, CheckCircle2, Clock } from 'lucide-react'
+import { BarChart2, Download, FileText, Calendar, Plus, X, Filter, CheckCircle2, Clock, Users, ListChecks, CalendarDays, BarChart } from 'lucide-react'
 import { DashboardCharts } from '@/components/DashboardCharts'
 import { createClient } from '@/lib/supabase/client'
 import { addNotification } from '@/lib/notifications'
@@ -17,15 +17,6 @@ interface Report {
   format: 'pdf' | 'excel'
   dateRange?: string
 }
-
-const kpiData = [
-  { label: 'צמיחת הכנסות YTD', value: '+24.3%', trend: 'up', vs: 'יעד שנתי: 20% ✓' },
-  { label: 'רווחיות ממוצעת', value: '36.8%', trend: 'up', vs: 'H1 2025: 31.2%' },
-  { label: 'עסקאות שנסגרו', value: '14', trend: 'up', vs: 'Q1: 9 עסקאות' },
-  { label: 'ROI ממוצע השקעות', value: '18.4%', trend: 'up', vs: 'יעד: 15% ✓' },
-  { label: 'עלויות תפעוליות', value: '₪820K', trend: 'down', vs: 'קיצוץ של 8.2%' },
-  { label: 'NPS לקוחות ועסקים', value: '72', trend: 'up', vs: 'קודם: 65' },
-]
 
 const REPORT_TYPES = ['שבועי','רבעוני','חצי שנתי','שנתי','מחלקתי — כספים','מחלקתי — שיווק','מחלקתי — נדל״ן','מחלקתי — הנהלה','תפעולי — ישיבות','תפעולי — משימות','תפעולי — מחלקות']
 
@@ -45,18 +36,34 @@ export default function ReportsPage() {
   const [nFrom, setNFrom] = useState('')
   const [nTo, setNTo] = useState('')
 
+  const [kpi, setKpi] = useState({ tasks: 0, done: 0, customers: 0, meetings: 0 })
+
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data }) => {
       const uid = data.user?.id
       if (!uid) { setIsLoading(false); return }
       setUserId(uid)
-      const { data: rows } = await supabase
-        .from('reports')
-        .select('data')
-        .eq('user_id', uid)
-        .order('created_at', { ascending: false })
-      setReports(rows?.map((r: any) => r.data) || [])
+
+      const [reportsRes, tasksRes, customersRes, meetingsRes] = await Promise.all([
+        supabase.from('reports').select('data').eq('user_id', uid).order('created_at', { ascending: false }),
+        supabase.from('tasks').select('data').eq('user_id', uid),
+        supabase.from('customers').select('data').eq('user_id', uid),
+        supabase.from('meetings').select('data').eq('user_id', uid),
+      ])
+
+      setReports(reportsRes.data?.map((r: any) => r.data) || [])
+
+      const tasks = tasksRes.data?.map((r: any) => r.data) || []
+      const customers = customersRes.data?.map((r: any) => r.data) || []
+      const meetings = meetingsRes.data?.map((r: any) => r.data) || []
+      setKpi({
+        tasks: tasks.length,
+        done: tasks.filter((t: any) => t.status === 'done').length,
+        customers: customers.filter((c: any) => c.status === 'active').length,
+        meetings: meetings.filter((m: any) => m.status === 'upcoming').length,
+      })
+
       setIsLoading(false)
     })
   }, [])
@@ -127,7 +134,7 @@ export default function ReportsPage() {
         if (tasks.length) {
           const ws = XLSX.utils.aoa_to_sheet([
             ['כותרת', 'סטטוס', 'עדיפות', 'מחלקה', 'תאריך יעד'],
-            ...tasks.map((t: any) => [t.title || t.text || '—', t.status || '—', t.priority || '—', t.department || '—', t.dueDate || '—']),
+            ...tasks.map((t: any) => [t.title || '—', t.status === 'done' ? 'הושלם' : t.status === 'inprogress' ? 'בתהליך' : 'לביצוע', t.priority === 'high' ? 'גבוהה' : t.priority === 'medium' ? 'בינונית' : 'נמוכה', t.assignee || '—', t.dueDate || '—']),
           ])
           ws['!cols'] = [{ wch: 30 }, { wch: 14 }, { wch: 12 }, { wch: 18 }, { wch: 14 }]
           XLSX.utils.book_append_sheet(wb, ws, 'משימות')
@@ -229,16 +236,23 @@ export default function ReportsPage() {
       <Header title="דוחות" subtitle="ניתוח ביצועים, מדדים ודוחות ניהוליים" />
 
       <div className="p-6 space-y-6 animate-fade-in">
-        {/* KPI grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          {kpiData.map((kpi, i) => (
-            <div key={i} className="glass-card rounded-2xl p-4">
-              <p className="text-xs text-text-muted mb-2">{kpi.label}</p>
-              <div className="flex items-end justify-between">
-                <p className="text-2xl font-bold text-accent-cyan">{kpi.value}</p>
-                <TrendingUp className={`w-4 h-4 mb-1 ${kpi.trend === 'up' ? 'text-accent-green' : 'text-accent-red rotate-180'}`} />
+        {/* KPI grid — real data from Supabase */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: 'סה"כ משימות', value: kpi.tasks, sub: `${kpi.done} הושלמו`, icon: ListChecks, color: 'text-accent-cyan' },
+            { label: 'לקוחות פעילים', value: kpi.customers, sub: 'סטטוס פעיל', icon: Users, color: 'text-accent-green' },
+            { label: 'ישיבות קרובות', value: kpi.meetings, sub: 'מתוכננות', icon: CalendarDays, color: 'text-accent-amber' },
+            { label: 'דוחות שמורים', value: reports.length, sub: 'סה"כ', icon: BarChart, color: 'text-accent-purple' },
+          ].map((s, i) => (
+            <div key={i} className="glass-card rounded-2xl p-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shrink-0">
+                <s.icon className={`w-5 h-5 ${s.color}`} />
               </div>
-              <p className="text-xs text-text-muted mt-1">{kpi.vs}</p>
+              <div>
+                <p className="text-xs text-text-muted mb-0.5">{s.label}</p>
+                <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                <p className="text-xs text-text-muted">{s.sub}</p>
+              </div>
             </div>
           ))}
         </div>
