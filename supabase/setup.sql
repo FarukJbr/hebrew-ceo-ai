@@ -155,3 +155,45 @@ CREATE POLICY "Users manage own cf_data"
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- Done! All 11 tables are ready.
+
+-- ===================================================
+-- CRM Extension — run after initial setup
+-- ===================================================
+
+CREATE TABLE IF NOT EXISTS public.crm_inquiries (
+  id         UUID        PRIMARY KEY,
+  user_id    UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  data       JSONB       NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE public.crm_inquiries ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users manage own crm_inquiries" ON public.crm_inquiries;
+CREATE POLICY "Users manage own crm_inquiries"
+  ON public.crm_inquiries FOR ALL TO authenticated
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE TABLE IF NOT EXISTS public.crm_deals (
+  id         UUID        PRIMARY KEY,
+  user_id    UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  data       JSONB       NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE public.crm_deals ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users manage own crm_deals" ON public.crm_deals;
+CREATE POLICY "Users manage own crm_deals"
+  ON public.crm_deals FOR ALL TO authenticated
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE TABLE IF NOT EXISTS public.crm_payments (
+  id         UUID        PRIMARY KEY,
+  user_id    UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  data       JSONB       NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE public.crm_payments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users manage own crm_payments" ON public.crm_payments;
+CREATE POLICY "Users manage own crm_payments"
+  ON public.crm_payments FOR ALL TO authenticated
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+-- Done! CRM tables added (crm_inquiries, crm_deals, crm_payments)
